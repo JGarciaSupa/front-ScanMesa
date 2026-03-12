@@ -1,19 +1,11 @@
-import dynamic from "next/dynamic";
+"use client";
+
 import { QrCode, ScanLine, AlertTriangle } from "lucide-react";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { QrScanner } from "@/components/qr/QrScanner";
 
-// El scanner usa APIs del navegador → solo client-side
-const QrScanner = dynamic(
-  () => import("./QrScanner").then((m) => m.QrScanner),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="w-full h-10 rounded-md bg-muted animate-pulse" />
-    ),
-  }
-);
 
 export default function QRPage() {
   return (

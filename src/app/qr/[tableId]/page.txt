@@ -354,7 +354,7 @@ function CartDrawer({
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
-export default function Home({ params }: { params: Promise<{ tableId: string }> }) {
+export default function MenuPage({ params }: { params: Promise<{ tableId: string }> }) {
   const { tableId } = use(params);
 
   const [activeCategory, setActiveCategory] = useState("all");

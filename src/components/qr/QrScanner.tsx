@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Scanner } from "@yudiel/react-qr-scanner";
-import { Camera, CameraOff, Loader2 } from "lucide-react";
+import { Camera, CameraOff, Loader2, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 type ScannerState = "idle" | "scanning" | "error";
@@ -12,6 +12,39 @@ export function QrScanner() {
   const router = useRouter();
   const [state, setState] = useState<ScannerState>("idle");
   const [errorMsg, setErrorMsg] = useState("");
+  const [secureContext, setSecureContext] = useState(true);
+
+  useEffect(() => {
+    // isSecureContext es true solo en HTTPS o localhost
+    setSecureContext(window.isSecureContext);
+  }, []);
+
+  // Si el contexto no es seguro, mostramos un aviso claro
+  if (!secureContext) {
+    return (
+      <div className="flex flex-col gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 p-4">
+        <div className="flex items-start gap-2">
+          <ShieldAlert className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <p className="text-sm font-medium text-amber-700 dark:text-amber-400">
+              Cámara no disponible en HTTP
+            </p>
+            <p className="text-xs text-amber-600/80 dark:text-amber-500/80 leading-relaxed">
+              El navegador requiere <strong>HTTPS</strong> para acceder a la
+              cámara. Accede usando <code className="font-mono">https://</code>{" "}
+              o escanea el QR directamente con la app de cámara de tu teléfono.
+            </p>
+          </div>
+        </div>
+        <a
+          href={`https://${window.location.host}${window.location.pathname}`}
+          className="text-xs text-center text-amber-700 dark:text-amber-400 underline underline-offset-2"
+        >
+          Abrir en HTTPS →
+        </a>
+      </div>
+    );
+  }
 
   function handleScan(results: { rawValue: string }[]) {
     const raw = results?.[0]?.rawValue;
