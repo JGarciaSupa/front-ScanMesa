@@ -4,30 +4,83 @@ import type { NextRequest } from 'next/server';
 // Rutas protegidas que requieren autenticación
 const protectedPaths = ['/dashboard', '/kds', '/pos'];
 
-export function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl;
+async function refreshTokens(request: NextRequest, refreshToken: string) {
+  const host = request.headers.get("host") ?? "";
+  const subDomain = host.split('.')[0] ?? "";
+  const slug = subDomain.replace('-', '_');
+  const apiUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000";
 
-  // Verificar si la ruta actual está en la lista de rutas protegidas
+  try {
+    const res = await fetch(`${apiUrl}/tenant/auth/refresh`, {
+      method: "POST",
+      headers: { 
+        "Content-Type": "application/json",
+        "x-schema-tenant": slug
+      },
+      body: JSON.stringify({ refreshToken }),
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success) return data.data.tokens;
+    }
+  } catch (e) {
+    console.error("Middleware refresh error:", e);
+  }
+  return null;
+}
+
+export async function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+  const accessToken = request.cookies.get('accessToken');
+  const refreshToken = request.cookies.get('refreshToken');
+
+  // Si es la página de login y ya tiene token, redirigir al dashboard
+  if (pathname === '/login' && accessToken) {
+    return NextResponse.redirect(new URL('/dashboard', request.url));
+  }
+
   const isProtectedPath = protectedPaths.some(path => pathname.startsWith(path));
 
-  // Si la ruta es protegida, validamos la existencia del accessToken
-  if (isProtectedPath) {
-    const accessToken = request.cookies.get('accessToken');
+  // Lógica de renovación de tokens si el access token expiró pero hay refresh token
+  if (isProtectedPath && !accessToken && refreshToken) {
+    const tokens = await refreshTokens(request, refreshToken.value);
+    
+    if (tokens) {
+      const response = NextResponse.next();
+      
+      response.cookies.set("accessToken", tokens.accessToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        maxAge: 15 * 60,
+        path: "/",
+      });
 
-    if (!accessToken) {
-      // Si no hay token, lo redirigimos a la página de inicio de sesión
-      const loginUrl = new URL('/login', request.url);
-      return NextResponse.redirect(loginUrl);
+      response.cookies.set("refreshToken", tokens.refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        maxAge: 7 * 24 * 60 * 60,
+        path: "/",
+      });
+
+      return response;
     }
   }
 
-  // Permitir la solicitud si todo está bien
+  // Si la ruta es protegida y no hay forma de autenticar, al login
+  if (isProtectedPath && !accessToken) {
+    return NextResponse.redirect(new URL('/login', request.url));
+  }
+
   return NextResponse.next();
 }
 
 // Configuración de rutas donde debe ejecutarse este middleware
 export const config = {
   matcher: [
+    '/login',
     '/dashboard/:path*',
     '/kds/:path*',
     '/pos/:path*'

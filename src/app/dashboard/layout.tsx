@@ -44,8 +44,17 @@ const navigation = [
   { name: "Configuración", href: "/dashboard/settings", icon: Settings },
 ];
 
+import { logoutAction } from "@/app/actions/logout";
+import { useAuthStore } from "@/store/useAuthStore";
+
 function SidebarContent() {
   const pathname = usePathname();
+  const logoutStore = useAuthStore((state) => state.logout);
+
+  const handleLogout = async () => {
+    logoutStore();
+    await logoutAction();
+  };
 
   return (
     <div className="flex h-full flex-col bg-slate-900 border-r border-slate-800 text-slate-300">
@@ -92,7 +101,11 @@ function SidebarContent() {
           <Store className="mr-2 h-4 w-4" />
           Ir al POS (Sala)
         </Button>
-        <Button variant="ghost" className="w-full justify-start text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors">
+        <Button 
+          variant="ghost" 
+          className="w-full justify-start text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors"
+          onClick={handleLogout}
+        >
           <LogOut className="mr-2 h-4 w-4" />
           Cerrar Sesión
         </Button>
@@ -101,83 +114,87 @@ function SidebarContent() {
   );
 }
 
+import RoleGuard from "@/components/auth/RoleGuard";
+
 export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex h-screen w-full bg-slate-50 overflow-hidden font-sans">
-      {/* Desktop Sidebar */}
-      <div className="hidden lg:block lg:w-64 lg:flex-shrink-0">
-        <SidebarContent />
-      </div>
+    <RoleGuard>
+      <div className="flex h-screen w-full bg-slate-50 overflow-hidden font-sans">
+        {/* Desktop Sidebar */}
+        <div className="hidden lg:block lg:w-64 lg:flex-shrink-0">
+          <SidebarContent />
+        </div>
 
-      <div className="flex flex-col flex-1 min-w-0">
-        {/* Header */}
-        <header className="sticky top-0 z-10 flex h-16 flex-shrink-0 items-center justify-between gap-x-4 border-b border-slate-200 bg-white/80 backdrop-blur-md px-4 sm:gap-x-6 sm:px-6 lg:px-8">
-          
-          <div className="flex items-center gap-4">
-            <Sheet>
-              <SheetTrigger asChild>
-                <Button variant="ghost" size="icon" className="-m-2 p-2 text-slate-700 lg:hidden hover:bg-slate-100">
-                  <span className="sr-only">Open sidebar</span>
-                  <Menu className="h-6 w-6" aria-hidden="true" />
-                </Button>
-              </SheetTrigger>
-              <SheetContent side="left" className="p-0 w-72 border-r-slate-800">
-                <SheetTitle className="sr-only">Menú de navegación</SheetTitle>
-                <SidebarContent />
-              </SheetContent>
-            </Sheet>
-
-            {/* Separator for mobile */}
-            <div className="h-6 w-px bg-slate-200 lg:hidden" aria-hidden="true" />
-
-            {/* Breadcrumbs */}
-            <Breadcrumb className="hidden sm:flex">
-              <BreadcrumbList>
-                <BreadcrumbItem>
-                  <BreadcrumbLink href="/dashboard" className="text-slate-500 hover:text-slate-900">Dashboard</BreadcrumbLink>
-                </BreadcrumbItem>
-                <BreadcrumbSeparator />
-                <BreadcrumbItem>
-                  <BreadcrumbPage className="font-semibold text-slate-900">Inicio</BreadcrumbPage>
-                </BreadcrumbItem>
-              </BreadcrumbList>
-            </Breadcrumb>
-          </div>
-
-          <div className="flex items-center gap-x-4 lg:gap-x-6">
-            <div className="hidden sm:block">
-              <Select defaultValue="today">
-                <SelectTrigger className="w-[150px] h-9 bg-slate-50 border-slate-200 focus:ring-slate-400">
-                  <SelectValue placeholder="Periodo" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="today">Hoy</SelectItem>
-                  <SelectItem value="week">Esta Semana</SelectItem>
-                  <SelectItem value="month">Este Mes</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+        <div className="flex flex-col flex-1 min-w-0">
+          {/* Header */}
+          <header className="sticky top-0 z-10 flex h-16 flex-shrink-0 items-center justify-between gap-x-4 border-b border-slate-200 bg-white/80 backdrop-blur-md px-4 sm:gap-x-6 sm:px-6 lg:px-8">
             
-            {/* Separator */}
-            <div className="hidden sm:block h-6 w-px bg-slate-200" aria-hidden="true" />
+            <div className="flex items-center gap-4">
+              <Sheet>
+                <SheetTrigger asChild>
+                  <Button variant="ghost" size="icon" className="-m-2 p-2 text-slate-700 lg:hidden hover:bg-slate-100">
+                    <span className="sr-only">Open sidebar</span>
+                    <Menu className="h-6 w-6" aria-hidden="true" />
+                  </Button>
+                </SheetTrigger>
+                <SheetContent side="left" className="p-0 w-72 border-r-slate-800">
+                  <SheetTitle className="sr-only">Menú de navegación</SheetTitle>
+                  <SidebarContent />
+                </SheetContent>
+              </Sheet>
 
-            {/* Profile */}
-            <Avatar className="h-9 w-9 cursor-pointer ring-2 ring-transparent hover:ring-slate-200 transition-all">
-              <AvatarImage src="https://api.dicebear.com/7.x/avataaars/svg?seed=AdminBoss" alt="Admin Avatar" />
-              <AvatarFallback className="bg-slate-900 text-white text-xs font-medium">AD</AvatarFallback>
-            </Avatar>
-          </div>
-        </header>
+              {/* Separator for mobile */}
+              <div className="h-6 w-px bg-slate-200 lg:hidden" aria-hidden="true" />
 
-        {/* Main Content */}
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 w-full max-w-7xl mx-auto">
-          {children}
-        </main>
+              {/* Breadcrumbs */}
+              <Breadcrumb className="hidden sm:flex">
+                <BreadcrumbList>
+                  <BreadcrumbItem>
+                    <BreadcrumbLink href="/dashboard" className="text-slate-500 hover:text-slate-900">Dashboard</BreadcrumbLink>
+                  </BreadcrumbItem>
+                  <BreadcrumbSeparator />
+                  <BreadcrumbItem>
+                    <BreadcrumbPage className="font-semibold text-slate-900">Inicio</BreadcrumbPage>
+                  </BreadcrumbItem>
+                </BreadcrumbList>
+              </Breadcrumb>
+            </div>
+
+            <div className="flex items-center gap-x-4 lg:gap-x-6">
+              <div className="hidden sm:block">
+                <Select defaultValue="today">
+                  <SelectTrigger className="w-[150px] h-9 bg-slate-50 border-slate-200 focus:ring-slate-400">
+                    <SelectValue placeholder="Periodo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="today">Hoy</SelectItem>
+                    <SelectItem value="week">Esta Semana</SelectItem>
+                    <SelectItem value="month">Este Mes</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              {/* Separator */}
+              <div className="hidden sm:block h-6 w-px bg-slate-200" aria-hidden="true" />
+
+              {/* Profile */}
+              <Avatar className="h-9 w-9 cursor-pointer ring-2 ring-transparent hover:ring-slate-200 transition-all">
+                <AvatarImage src="https://api.dicebear.com/7.x/avataaars/svg?seed=AdminBoss" alt="Admin Avatar" />
+                <AvatarFallback className="bg-slate-900 text-white text-xs font-medium">AD</AvatarFallback>
+              </Avatar>
+            </div>
+          </header>
+
+          {/* Main Content */}
+          <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 w-full max-w-7xl mx-auto">
+            {children}
+          </main>
+        </div>
       </div>
-    </div>
+    </RoleGuard>
   );
 }

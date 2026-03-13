@@ -27,7 +27,10 @@ const recentOrders = [
   { id: "5", table: "Mesa 5", status: "En curso", amount: "€54.00", time: "Hace 32 min" },
 ];
 
+import { useAuthStore } from "@/store/useAuthStore";
+
 export default function DashboardPage() {
+  const user = useAuthStore((state) => state.user);
   const currentDate = new Date().toLocaleDateString("es-ES", {
     weekday: "long",
     year: "numeric",
@@ -40,8 +43,12 @@ export default function DashboardPage() {
       {/* Saludo */}
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-extrabold tracking-tight text-slate-900">Resumen de Hoy</h2>
-          <p className="text-sm font-medium text-slate-500 capitalize mt-1">{currentDate}</p>
+          <h2 className="text-3xl font-extrabold tracking-tight text-slate-900">
+            {user ? `¡Hola, ${user.name}! 👋` : 'Resumen de Hoy'}
+          </h2>
+          <p className="text-sm font-medium text-slate-500 capitalize mt-1">
+            {user ? "Aquí tienes un resumen de lo que sucede hoy." : currentDate}
+          </p>
         </div>
       </div>
 

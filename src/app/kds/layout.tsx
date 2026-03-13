@@ -11,8 +11,13 @@ import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
+import { logoutAction } from "@/app/actions/logout";
+import { useAuthStore } from "@/store/useAuthStore";
+
 function KDSHeaderContent() {
   const router = useRouter();
+  const user = useAuthStore((state) => state.user);
+  const logoutStore = useAuthStore((state) => state.logout);
   const [time, setTime] = useState<string>("");
   const [silentMode, setSilentMode] = useState(false);
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
@@ -26,6 +31,12 @@ function KDSHeaderContent() {
     const interval = setInterval(updateTime, 1000);
     return () => clearInterval(interval);
   }, []);
+
+  const handleLogout = async () => {
+    setShowLogoutDialog(false);
+    logoutStore();
+    await logoutAction();
+  };
 
   return (
     <header className="bg-card border-b border-border flex flex-col md:flex-row items-center justify-between px-4 lg:px-6 py-4 shrink-0 shadow-lg z-20 w-full relative gap-4">
@@ -79,7 +90,7 @@ function KDSHeaderContent() {
           <DropdownMenuContent align="end" className="w-64 p-2 z-50">
             <DropdownMenuLabel className="font-normal">
               <div className="flex flex-col space-y-1">
-                <p className="text-sm font-medium leading-none">Chef: Julio</p>
+                <p className="text-sm font-medium leading-none">Usuario: {user?.name || "Cocinero"}</p>
                 <p className="text-xs text-muted-foreground mt-1">Sistema KDS</p>
               </div>
             </DropdownMenuLabel>
@@ -122,10 +133,7 @@ function KDSHeaderContent() {
               <Button variant="outline" onClick={() => setShowLogoutDialog(false)}>
                 Cancelar
               </Button>
-              <Button variant="destructive" onClick={() => {
-                setShowLogoutDialog(false);
-                router.push("/login");
-              }}>
+              <Button variant="destructive" onClick={handleLogout}>
                 Confirmar
               </Button>
             </DialogFooter>
@@ -166,16 +174,20 @@ function KDSHeaderContent() {
   );
 }
 
+import RoleGuard from "@/components/auth/RoleGuard";
+
 export default function KDSLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="dark h-screen overflow-hidden bg-background text-foreground flex flex-col font-sans">
-      <Suspense fallback={<div className="h-20 bg-muted border-b border-border" />}>
-        <KDSHeaderContent />
-      </Suspense>
-      {/* Container Principal: Toma el alto restante exacto permitiendo scroll vertical solo aquí */}
-      <main className="flex-1 w-full p-4 lg:p-6 pb-2 lg:pb-4 border-t border-border overflow-y-auto custom-scrollbar">
-        {children}
-      </main>
-    </div>
+    <RoleGuard>
+      <div className="dark h-screen overflow-hidden bg-background text-foreground flex flex-col font-sans">
+        <Suspense fallback={<div className="h-20 bg-muted border-b border-border" />}>
+          <KDSHeaderContent />
+        </Suspense>
+        {/* Container Principal: Toma el alto restante exacto permitiendo scroll vertical solo aquí */}
+        <main className="flex-1 w-full p-4 lg:p-6 pb-2 lg:pb-4 border-t border-border overflow-y-auto custom-scrollbar">
+          {children}
+        </main>
+      </div>
+    </RoleGuard>
   );
 }

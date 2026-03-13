@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { loginAction } from "@/app/actions/auth";
 import { useRouter } from "next/navigation";
+import { useAuthStore } from "@/store/useAuthStore";
 
 interface LoginFormProps {
   tenant: {
@@ -20,6 +21,7 @@ interface LoginFormProps {
 
 export default function LoginForm({ tenant }: LoginFormProps) {
   const router = useRouter();
+  const setUser = useAuthStore((state) => state.setUser);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -32,11 +34,22 @@ export default function LoginForm({ tenant }: LoginFormProps) {
     const result = await loginAction(email, password);
 
     if (result.success) {
+      setUser(result.user);
       toast.success(`Acceso concedido a ${tenant.name}`, {
         description: "Redirigiendo al panel de control...",
       });
-      // El ruteo real hacia el dashboard
-      router.push("/dashboard");
+      
+      // Ruteo dinámico basado en rol
+      const role = result.user.role.toLowerCase();
+      if (role === 'admin') {
+        router.push("/dashboard");
+      } else if (role === 'kitchen') {
+        router.push("/kds");
+      } else if (role === 'waiter') {
+        router.push("/pos");
+      } else {
+        router.push("/dashboard");
+      }
     } else {
       setIsLoading(false);
       toast.error("Error de inicio de sesión", {

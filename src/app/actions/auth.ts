@@ -46,7 +46,7 @@ export async function loginAction(email: string, password: string) {
       path: "/",
     });
 
-    return { success: true };
+    return { success: true, user: data.data.user };
   } catch (error: any) {
     console.error("Error in loginAction:", error);
     return { success: false, error: "Error de conexión con el servidor" };
