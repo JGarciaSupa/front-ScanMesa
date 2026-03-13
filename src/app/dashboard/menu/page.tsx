@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,7 +13,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import {
   Sheet,
@@ -27,141 +26,283 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { toast } from "sonner";
 
-import { Search, Plus, Pencil, Settings, ImagePlus, AlertCircle } from "lucide-react";
+import { 
+  Search, 
+  Plus, 
+  Pencil, 
+  Settings, 
+  ImagePlus, 
+  AlertCircle, 
+  Loader2, 
+  Trash2,
+  Image as ImageIcon,
+  Upload
+} from "lucide-react";
 
-// Mocks Data
-const MOCK_CATEGORIES = ["Todos", "Entradas", "Pizzas", "Bebidas", "Postres"];
+import { 
+  getProductsAction, 
+  saveProductAction, 
+  deleteProductAction, 
+  toggleProductAvailableAction 
+} from "@/app/actions/products";
+import { getCategoriesAction } from "@/app/actions/categories";
 
-const INITIAL_MOCK_PRODUCTS = [
-  {
-    id: "1",
-    name: "Pizza Margarita",
-    description: "Salsa de tomate, mozzarella fresca y albahaca.",
-    price: 12.5,
-    category: "Pizzas",
-    image: "https://images.unsplash.com/photo-1574071318508-1cdbab80d002?auto=format&fit=crop&q=80&w=800",
-    available: true,
-    outOfStock: false,
-    hasInfiniteStock: true,
-    stock: null,
-  },
-  {
-    id: "2",
-    name: "Tequeños (6 uds.)",
-    description: "Deditos de queso envueltos en masa crujiente, acompañados de salsa de ajo.",
-    price: 6.0,
-    category: "Entradas",
-    image: "https://images.unsplash.com/photo-1628197479717-36e6ba687eb1?auto=format&fit=crop&q=80&w=800",
-    available: true,
-    outOfStock: false,
-    hasInfiniteStock: true,
-    stock: null,
-  },
-  {
-    id: "3",
-    name: "Coca-Cola 330ml",
-    description: "Refresco en lata super frío.",
-    price: 2.5,
-    category: "Bebidas",
-    image: "https://images.unsplash.com/photo-1622483767028-3f66f32aef97?auto=format&fit=crop&q=80&w=800",
-    available: true,
-    outOfStock: true,
-    hasInfiniteStock: false,
-    stock: 0,
-  },
-  {
-    id: "4",
-    name: "Tiramisú Casero",
-    description: "El clásico postre italiano con mascarpone y café expreso.",
-    price: 5.5,
-    category: "Postres",
-    image: "https://images.unsplash.com/photo-1571115177098-24ec42ed204d?auto=format&fit=crop&q=80&w=800",
-    available: false,
-    outOfStock: false,
-    hasInfiniteStock: false,
-    stock: 5,
-  },
-  {
-    id: "5",
-    name: "Pizza Pepperoni",
-    description: "Nuestra clásica pizza margarita con extra de pepperoni picante.",
-    price: 14.0,
-    category: "Pizzas",
-    image: "https://images.unsplash.com/photo-1628840042765-356cda07504e?auto=format&fit=crop&q=80&w=800",
-    available: true,
-    outOfStock: false,
-    hasInfiniteStock: true,
-    stock: null,
-  },
-  {
-    id: "6",
-    name: "Cerveza Artesanal IPA",
-    description: "Cerveza artesanal de la casa, notas cítricas y amargas.",
-    price: 4.5,
-    category: "Bebidas",
-    image: "https://images.unsplash.com/photo-1575037614876-c38db0cefa89?auto=format&fit=crop&q=80&w=800",
-    available: true,
-    outOfStock: false,
-    hasInfiniteStock: false,
-    stock: 24,
-  },
-];
+interface Product {
+  id: number;
+  name: string;
+  description: string | null;
+  price: string;
+  imageUrl: string | null;
+  categoryId: number;
+  categoryName: string | null;
+  isAvailable: boolean;
+  trackStock: boolean;
+  currentStock: number;
+}
+
+interface Category {
+  id: number;
+  name: string;
+}
 
 export default function MenuManagementPage() {
-  const [products, setProducts] = useState(INITIAL_MOCK_PRODUCTS);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("Todos");
   const [statusFilter, setStatusFilter] = useState("Todos");
 
   const [isSheetOpen, setIsSheetOpen] = useState(false);
-  const [editingProduct, setEditingProduct] = useState<any>(null);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
-  // Estados locales para el Formulario de Control de Stock del Drawer
-  const [hasInfiniteStock, setHasInfiniteStock] = useState(true);
-  const [stockValue, setStockValue] = useState<number | string>("");
+  // Form states
+  const [formData, setFormData] = useState({
+    name: "",
+    description: "",
+    price: "",
+    categoryId: "",
+    isAvailable: true,
+    trackStock: false,
+    currentStock: "0"
+  });
 
-  // Derived filtered state
+  // Image states
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+
+  const fetchData = useCallback(async () => {
+    try {
+      setLoading(true);
+      const [productsRes, categoriesRes] = await Promise.all([
+        getProductsAction(),
+        getCategoriesAction()
+      ]);
+
+      if (productsRes.success) {
+        setProducts(productsRes.data);
+      } else {
+        toast.error(productsRes.error || "Error al cargar productos");
+      }
+      
+      if (categoriesRes.success) {
+        setCategories(categoriesRes.data);
+      } else {
+        toast.error(categoriesRes.error || "Error al cargar categorías");
+      }
+    } catch (error) {
+      toast.error("Error de conexión");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
   const filteredProducts = products.filter((p) => {
     const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = categoryFilter === "Todos" || p.category === categoryFilter;
+    const matchesCategory = categoryFilter === "Todos" || p.categoryName === categoryFilter;
     let matchesStatus = true;
-    if (statusFilter === "Activos") matchesStatus = p.available && !p.outOfStock;
-    if (statusFilter === "Agotados") matchesStatus = p.outOfStock;
+    if (statusFilter === "Activos") matchesStatus = p.isAvailable && (!p.trackStock || p.currentStock > 0);
+    if (statusFilter === "Agotados") matchesStatus = p.trackStock && p.currentStock <= 0;
     
     return matchesSearch && matchesCategory && matchesStatus;
   });
 
-  const handleToggleAvailable = (id: string, currentVal: boolean) => {
-    setProducts((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, available: !currentVal } : p))
-    );
+  const handleToggleAvailable = async (id: number, currentVal: boolean) => {
+    try {
+      const data = await toggleProductAvailableAction(id, !currentVal);
+      if (data.success) {
+        setProducts((prev) =>
+          prev.map((p) => (p.id === id ? { ...p, isAvailable: !currentVal } : p))
+        );
+        toast.success("Estado actualizado");
+      } else {
+        toast.error(data.error || "Error al actualizar");
+      }
+    } catch (error) {
+      toast.error("Error de conexión");
+    }
   };
 
   const openNewDish = () => {
     setEditingProduct(null);
-    setHasInfiniteStock(true);
-    setStockValue("");
+    setFormData({
+      name: "",
+      description: "",
+      price: "",
+      categoryId: categories.length > 0 ? categories[0].id.toString() : "",
+      isAvailable: true,
+      trackStock: false,
+      currentStock: "0"
+    });
+    setSelectedImage(null);
+    setPreviewUrl(null);
     setIsSheetOpen(true);
   };
 
-  const openEditDish = (product: typeof INITIAL_MOCK_PRODUCTS[0]) => {
-    setEditingProduct(product);
-    setHasInfiniteStock(product.hasInfiniteStock);
-    setStockValue(product.stock !== null ? product.stock : "");
+  const openEditDish = (p: Product) => {
+    setEditingProduct(p);
+    setFormData({
+      name: p.name,
+      description: p.description || "",
+      price: p.price.toString(),
+      categoryId: p.categoryId.toString(),
+      isAvailable: p.isAvailable,
+      trackStock: p.trackStock,
+      currentStock: p.currentStock.toString()
+    });
+    setSelectedImage(null);
+    setPreviewUrl(p.imageUrl);
     setIsSheetOpen(true);
+  };
+
+  const validateAndSetImage = (file: File) => {
+    // Validar tipo de archivo
+    if (!file.type.startsWith("image/")) {
+      toast.error("El archivo debe ser una imagen (JPG, PNG, WEBP)");
+      return;
+    }
+    
+    // Validar tamaño (2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("La imagen no debe superar los 2MB");
+      return;
+    }
+
+    setSelectedImage(file);
+    const url = URL.createObjectURL(file);
+    setPreviewUrl(url);
+  };
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      validateAndSetImage(file);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    
+    const files = e.dataTransfer.files;
+    if (files.length > 1) {
+      toast.error("Solo puedes subir una imagen a la vez");
+      return;
+    }
+    
+    if (files[0]) {
+      validateAndSetImage(files[0]);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!formData.name || !formData.price || !formData.categoryId) {
+      toast.error("Por favor completa los campos obligatorios");
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      const form = new FormData();
+      form.append("name", formData.name);
+      form.append("description", formData.description);
+      form.append("price", formData.price);
+      form.append("categoryId", formData.categoryId);
+      form.append("isAvailable", formData.isAvailable.toString());
+      form.append("trackStock", formData.trackStock.toString());
+      form.append("currentStock", formData.currentStock);
+      
+      if (selectedImage) {
+        form.append("image", selectedImage);
+      }
+
+      const data = await saveProductAction(form, editingProduct?.id);
+      
+      if (data.success) {
+        toast.success(editingProduct ? "Producto actualizado" : "Producto creado");
+        setIsSheetOpen(false);
+        fetchData();
+      } else {
+        toast.error(data.error || "Error al guardar");
+      }
+    } catch (error) {
+      console.error("Error saving product:", error);
+      toast.error("Error de conexión al servidor");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!confirm("¿Estás seguro de eliminar este producto?")) return;
+
+    try {
+      const data = await deleteProductAction(id);
+      if (data.success) {
+        toast.success("Producto eliminado");
+        setProducts(prev => prev.filter(p => p.id !== id));
+      } else {
+        toast.error(data.error || "Error al eliminar");
+      }
+    } catch (error) {
+      toast.error("Error de conexión");
+    }
   };
 
   return (
     <div className="flex flex-col gap-6 p-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <h1 className="text-3xl font-bold tracking-tight">Gestión de Menú</h1>
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Gestión de Menú</h1>
+          <p className="text-muted-foreground mt-1">
+            Administra los platos, precios y disponibilidad de tu menú digital.
+          </p>
+        </div>
         <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
           <Button variant="outline" className="w-full sm:w-auto" asChild>
             <Link href="/dashboard/categories">
               <Settings className="w-4 h-4 mr-2" />
-              Gestionar Categorías
+              Categorías
             </Link>
           </Button>
           <Button onClick={openNewDish} className="w-full sm:w-auto">
@@ -178,7 +319,7 @@ export default function MenuManagementPage() {
         <div className="relative w-full md:max-w-xs">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Buscar plato por nombre..."
+            placeholder="Buscar plato..."
             className="pl-9 bg-background"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -186,15 +327,16 @@ export default function MenuManagementPage() {
         </div>
 
         {/* Filtro de Categoría */}
-        <div className="w-full md:w-[180px]">
+        <div className="w-full md:w-[200px]">
           <Select value={categoryFilter} onValueChange={setCategoryFilter}>
             <SelectTrigger className="bg-background">
               <SelectValue placeholder="Categoría" />
             </SelectTrigger>
             <SelectContent>
-              {MOCK_CATEGORIES.map((cat) => (
-                <SelectItem key={cat} value={cat}>
-                  {cat === "Todos" ? "Todas (Categorías)" : cat}
+              <SelectItem value="Todos">Todas las categorías</SelectItem>
+              {categories.map((cat) => (
+                <SelectItem key={cat.id} value={cat.name}>
+                  {cat.name}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -208,153 +350,200 @@ export default function MenuManagementPage() {
               <SelectValue placeholder="Estado" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="Todos">Todos (Estado)</SelectItem>
-              <SelectItem value="Activos">Activos / Disponibles</SelectItem>
-              <SelectItem value="Agotados">Agotados</SelectItem>
+              <SelectItem value="Todos">Todos</SelectItem>
+              <SelectItem value="Activos">Disponibles</SelectItem>
+              <SelectItem value="Agotados">Sin Stock</SelectItem>
             </SelectContent>
           </Select>
         </div>
       </div>
 
-      {/* Grid de Productos */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {filteredProducts.map((product) => (
-          <Card
-            key={product.id}
-            className={`overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-lg flex flex-col ${
-              !product.available ? "opacity-60 saturate-50" : ""
-            }`}
-          >
-            {/* Imagen del Plato */}
-            <div className="relative aspect-video bg-muted w-full overflow-hidden">
-              <img
-                src={product.image}
-                alt={product.name}
-                className="object-cover w-full h-full"
-              />
-              <div className="absolute top-3 left-3 flex gap-2">
-                <Badge className="shadow-sm backdrop-blur-md bg-background/80 text-foreground hover:bg-background/90 border-none">
-                  {product.category}
-                </Badge>
-                {product.outOfStock && (
-                  <Badge variant="destructive" className="shadow-sm flex items-center gap-1">
-                    <AlertCircle className="w-3 h-3" />
-                    Fuera de stock
-                  </Badge>
+      {/* Content Grid */}
+      {loading ? (
+        <div className="flex flex-col items-center justify-center py-20 gap-4">
+          <Loader2 className="w-10 h-10 animate-spin text-primary" />
+          <p className="text-muted-foreground">Cargando productos...</p>
+        </div>
+      ) : filteredProducts.length > 0 ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {filteredProducts.map((product) => (
+            <Card
+              key={product.id}
+              className={`overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-lg flex flex-col ${
+                !product.isAvailable ? "opacity-60 saturate-50" : ""
+              }`}
+            >
+              {/* Imagen del Plato */}
+              <div className="relative aspect-video bg-muted w-full overflow-hidden">
+                {product.imageUrl ? (
+                  <img
+                    src={product.imageUrl}
+                    alt={product.name}
+                    className="object-cover w-full h-full"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-muted-foreground/40">
+                    <ImageIcon className="w-12 h-12" />
+                  </div>
                 )}
+                <div className="absolute top-3 left-3 flex gap-2">
+                  <Badge className="shadow-sm backdrop-blur-md bg-background/80 text-foreground hover:bg-background/90 border-none">
+                    {product.categoryName || "Sin Categoría"}
+                  </Badge>
+                  {product.trackStock && product.currentStock <= 0 && (
+                    <Badge variant="destructive" className="shadow-sm flex items-center gap-1">
+                      <AlertCircle className="w-3 h-3" />
+                      Agotado
+                    </Badge>
+                  )}
+                </div>
               </div>
-            </div>
 
-            <CardContent className="p-4 flex flex-col flex-1">
-              <div className="flex justify-between items-start mb-2 gap-2">
-                <h3 className="font-semibold text-lg leading-tight line-clamp-2">
-                  {product.name}
-                </h3>
-                <span className="font-bold text-lg text-primary whitespace-nowrap">
-                  ${product.price.toFixed(2)}
-                </span>
-              </div>
-              
-              <p className="text-sm text-muted-foreground line-clamp-2 mb-4 flex-1">
-                {product.description}
-              </p>
+              <CardContent className="p-4 flex flex-col flex-1">
+                <div className="flex justify-between items-start mb-2 gap-2">
+                  <h3 className="font-semibold text-lg leading-tight line-clamp-2">
+                    {product.name}
+                  </h3>
+                  <span className="font-bold text-lg text-primary whitespace-nowrap">
+                    ${parseFloat(product.price).toFixed(2)}
+                  </span>
+                </div>
+                
+                <p className="text-sm text-muted-foreground line-clamp-2 mb-4 flex-1">
+                  {product.description || "Sin descripción."}
+                </p>
 
-              {/* Inventario Stats Rápido */}
-               <div className="mb-4">
-                  {!product.hasInfiniteStock && product.stock !== null && (
-                    <span className="text-xs font-semibold px-2 py-1 bg-secondary rounded-md border text-secondary-foreground shadow-sm">
-                      {product.stock} disponibles
+                {/* Stock Info */}
+                <div className="mb-4">
+                  {product.trackStock ? (
+                    <span className={`text-xs font-semibold px-2 py-1 rounded-md border shadow-sm ${
+                      product.currentStock > 0 ? "bg-secondary text-secondary-foreground" : "bg-destructive/10 text-destructive border-destructive/20"
+                    }`}>
+                      {product.currentStock} unidades
+                    </span>
+                  ) : (
+                    <span className="text-xs text-muted-foreground italic">
+                      Stock ilimitado
                     </span>
                   )}
-                  {product.hasInfiniteStock && (
-                    <span className="text-xs text-muted-foreground italic flex items-center">
-                    Stock infinito
-                  </span>
-                  )}
-               </div>
-
-              {/* Botoneria y Switches en el Footer de la Card */}
-              <div className="flex items-center justify-between pt-4 mt-auto border-t">
-                <div className="flex items-center space-x-2">
-                  <Switch
-                    id={`available-${product.id}`}
-                    checked={product.available}
-                    onCheckedChange={() => handleToggleAvailable(product.id, product.available)}
-                  />
-                  <Label
-                    htmlFor={`available-${product.id}`}
-                    className="text-sm font-medium cursor-pointer"
-                  >
-                    Disponible
-                  </Label>
                 </div>
 
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 text-muted-foreground hover:text-primary"
-                  onClick={() => openEditDish(product)}
-                >
-                  <Pencil className="h-4 w-4" />
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+                {/* Card Actions */}
+                <div className="flex items-center justify-between pt-4 mt-auto border-t">
+                  <div className="flex items-center space-x-2">
+                    <Switch
+                      id={`available-${product.id}`}
+                      checked={product.isAvailable}
+                      onCheckedChange={() => handleToggleAvailable(product.id, product.isAvailable)}
+                    />
+                    <Label
+                      htmlFor={`available-${product.id}`}
+                      className="text-sm font-medium cursor-pointer"
+                    >
+                      {product.isAvailable ? "Disponible" : "Oculto"}
+                    </Label>
+                  </div>
 
-      {filteredProducts.length === 0 && (
+                  <div className="flex gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-muted-foreground hover:text-primary"
+                      onClick={() => openEditDish(product)}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                      onClick={() => handleDelete(product.id)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : (
         <div className="text-center py-20 bg-muted/20 border border-dashed rounded-lg">
-          <p className="text-muted-foreground">No se encontraron productos con estos filtros.</p>
+          <p className="text-muted-foreground">No se encontraron productos.</p>
           <Button variant="link" onClick={() => { setSearchTerm(""); setCategoryFilter("Todos"); setStatusFilter("Todos"); }}>Limpiar filtros</Button>
         </div>
       )}
 
-      {/* Slide / Sheet para Crear/Editar Plato */}
+      {/* Editor Sheet */}
       <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
         <SheetContent className="flex flex-col w-full sm:max-w-xl p-0 gap-0">
           <div className="p-6 border-b">
             <SheetHeader>
               <SheetTitle className="text-2xl font-semibold">
-                {editingProduct ? "Editar Plato" : "Añadir Nuevo Plato"}
+                {editingProduct ? "Editar Plato" : "Nuevo Plato"}
               </SheetTitle>
               <SheetDescription>
-                Completa los detalles del platillo para agregarlo al menú digital.
+                {editingProduct 
+                  ? "Actualiza la información de este platillo."
+                  : "Crea un nuevo platillo para tu menú digital."}
               </SheetDescription>
             </SheetHeader>
           </div>
 
           <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6">
             
-            {/* Upload Area */}
+            {/* Image Upload Area */}
             <div className="grid gap-3">
               <Label className="text-base font-medium">Imagen del Plato</Label>
-              <div className="border-2 border-dashed rounded-xl overflow-hidden relative group bg-muted/20 hover:bg-muted/40 transition-colors flex flex-col items-center justify-center text-center cursor-pointer min-h-[220px]">
-                {editingProduct ? (
+              <div 
+                onClick={() => fileInputRef.current?.click()}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                className={`border-2 border-dashed rounded-xl overflow-hidden relative group transition-all duration-200 flex flex-col items-center justify-center text-center cursor-pointer min-h-[220px] ${
+                  isDragging 
+                    ? "border-primary bg-primary/10" 
+                    : "border-muted-foreground/20 bg-muted/20 hover:bg-muted/40"
+                }`}
+              >
+                <input 
+                  type="file" 
+                  ref={fileInputRef} 
+                  className="hidden" 
+                  accept="image/*" 
+                  onChange={handleImageChange}
+                />
+                
+                {previewUrl ? (
                   <>
-                    <img src={editingProduct.image} alt="Preview" className="object-cover w-full h-full absolute inset-0" />
+                    <img src={previewUrl} alt="Preview" className="object-cover w-full h-full absolute inset-0" />
                     <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-sm">
                       <ImagePlus className="w-8 h-8 text-white mb-2" />
                       <p className="text-white text-sm font-medium">Cambiar Imagen</p>
                     </div>
                   </>
                 ) : (
-                  <div className="py-8">
-                    <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center text-primary mx-auto mb-4">
-                      <ImagePlus className="w-7 h-7" />
+                  <div className="py-8 px-4">
+                    <div className={`w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4 transition-colors ${
+                      isDragging ? "bg-primary text-white" : "bg-primary/10 text-primary"
+                    }`}>
+                      {isDragging ? <Upload className="w-7 h-7 animate-bounce" /> : <ImagePlus className="w-7 h-7" />}
                     </div>
-                    <p className="text-sm font-semibold mb-1">Haz clic para subir imagen</p>
-                    <p className="text-xs text-muted-foreground px-4">Soporta JPG, PNG o WEBP. Tamaño máximo 2MB.</p>
+                    <p className="text-sm font-semibold mb-1">
+                      {isDragging ? "¡Suéltala ahora!" : "Suelta una imagen aquí o haz clic"}
+                    </p>
+                    <p className="text-xs text-muted-foreground">Webp, JPG o PNG hasta 2MB (Máx. 1 archivo)</p>
                   </div>
                 )}
               </div>
             </div>
 
             <div className="grid gap-3">
-              <Label htmlFor="dish-name" className="text-sm font-medium">Nombre del Plato</Label>
+              <Label htmlFor="dish-name" className="text-sm font-medium">Nombre del Plato <span className="text-destructive">*</span></Label>
               <Input
                 id="dish-name"
-                defaultValue={editingProduct?.name || ""}
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 placeholder="Ej. Pizza de Pepperoni"
                 className="h-11"
               />
@@ -362,14 +551,15 @@ export default function MenuManagementPage() {
             
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
               <div className="grid gap-3">
-                <Label htmlFor="price" className="text-sm font-medium">Precio ($)</Label>
+                <Label htmlFor="price" className="text-sm font-medium">Precio ($) <span className="text-destructive">*</span></Label>
                 <div className="relative">
                   <span className="absolute left-3 top-3 text-muted-foreground">$</span>
                   <Input
                     id="price"
                     type="number"
                     step="0.01"
-                    defaultValue={editingProduct?.price || ""}
+                    value={formData.price}
+                    onChange={(e) => setFormData({ ...formData, price: e.target.value })}
                     placeholder="0.00"
                     className="pl-8 h-11"
                   />
@@ -377,14 +567,17 @@ export default function MenuManagementPage() {
               </div>
 
               <div className="grid gap-3">
-                <Label className="text-sm font-medium">Categoría</Label>
-                <Select defaultValue={editingProduct?.category || ""}>
+                <Label className="text-sm font-medium">Categoría <span className="text-destructive">*</span></Label>
+                <Select 
+                  value={formData.categoryId} 
+                  onValueChange={(val) => setFormData({ ...formData, categoryId: val })}
+                >
                   <SelectTrigger className="h-11">
                     <SelectValue placeholder="Seleccionar" />
                   </SelectTrigger>
                   <SelectContent>
-                    {MOCK_CATEGORIES.filter(c => c !== "Todos").map(cat => (
-                      <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                    {categories.map(cat => (
+                      <SelectItem key={cat.id} value={cat.id.toString()}>{cat.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -392,16 +585,17 @@ export default function MenuManagementPage() {
             </div>
 
             <div className="grid gap-3">
-              <Label htmlFor="description" className="text-sm font-medium">Descripción</Label>
+              <Label htmlFor="description" className="text-sm font-medium">Descripción (Opcional)</Label>
               <Textarea
                 id="description"
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                 placeholder="Breve descripción de los ingredientes..."
                 className="resize-none min-h-[100px]"
-                defaultValue={editingProduct?.description || ""}
               />
             </div>
 
-            {/* SECCIÓN DE INVENTARIO Y DISPONIBILIDAD O STOCK */}
+            {/* Inventario Stats */}
             <div className="flex flex-col gap-4 p-4 bg-muted/40 rounded-xl border border-muted mt-2">
               <h4 className="font-semibold text-sm">Inventario y Visibilidad</h4>
               
@@ -410,10 +604,9 @@ export default function MenuManagementPage() {
                   <div className="space-y-2">
                     <Label className="text-sm font-medium">Gestión de Stock</Label>
                     <Tabs
-                      value={hasInfiniteStock ? "infinite" : "limited"}
+                      value={formData.trackStock ? "limited" : "infinite"}
                       onValueChange={(val) => {
-                        setHasInfiniteStock(val === "infinite");
-                        if (val === "infinite") setStockValue("");
+                        setFormData({ ...formData, trackStock: val === "limited" });
                       }}
                       className="w-full"
                     >
@@ -424,7 +617,7 @@ export default function MenuManagementPage() {
                     </Tabs>
                   </div>
                   
-                  {!hasInfiniteStock && (
+                  {formData.trackStock && (
                     <div className="grid gap-2 pt-1 animate-in fade-in slide-in-from-top-1">
                       <Label htmlFor="stock-qty" className="text-xs text-muted-foreground">Cantidad disponible</Label>
                       <Input
@@ -432,8 +625,8 @@ export default function MenuManagementPage() {
                         type="number"
                         placeholder="Ej. 10"
                         className="h-10 bg-background"
-                        value={stockValue}
-                        onChange={(e) => setStockValue(e.target.value)}
+                        value={formData.currentStock}
+                        onChange={(e) => setFormData({ ...formData, currentStock: e.target.value })}
                       />
                     </div>
                   )}
@@ -446,10 +639,14 @@ export default function MenuManagementPage() {
                         Activo en Menú
                       </Label>
                       <p className="text-[11px] text-muted-foreground leading-tight">
-                        Desactiva para ocultarlo.
+                        Desactiva para ocultarlo del cliente.
                       </p>
                     </div>
-                    <Switch id="edit-available" defaultChecked={editingProduct ? editingProduct.available : true} />
+                    <Switch 
+                      id="edit-available" 
+                      checked={formData.isAvailable} 
+                      onCheckedChange={(val) => setFormData({ ...formData, isAvailable: val })}
+                    />
                   </div>
                 </div>
               </div>
@@ -459,16 +656,16 @@ export default function MenuManagementPage() {
           <div className="p-6 border-t bg-muted/10">
             <div className="flex flex-col-reverse sm:flex-row justify-end gap-3">
               <SheetClose asChild>
-                <Button variant="outline" className="w-full sm:w-auto h-11">Cancelar</Button>
+                <Button variant="outline" className="w-full sm:w-auto h-11" disabled={submitting}>Cancelar</Button>
               </SheetClose>
-              <Button className="w-full sm:w-auto h-11">
+              <Button className="w-full sm:w-auto h-11" onClick={handleSave} disabled={submitting}>
+                {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {editingProduct ? "Guardar Cambios" : "Crear Plato"}
               </Button>
             </div>
           </div>
         </SheetContent>
       </Sheet>
-
     </div>
   );
 }
