@@ -13,7 +13,7 @@ async function refreshTokens(request: NextRequest, refreshToken: string) {
   try {
     const res = await fetch(`${apiUrl}/tenant/auth/refresh`, {
       method: "POST",
-      headers: { 
+      headers: {
         "Content-Type": "application/json",
         "x-schema-tenant": slug
       },
@@ -30,14 +30,42 @@ async function refreshTokens(request: NextRequest, refreshToken: string) {
   return null;
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const accessToken = request.cookies.get('accessToken');
   const refreshToken = request.cookies.get('refreshToken');
 
-  // Si es la página de login y ya tiene token, redirigir al dashboard
-  if (pathname === '/login' && accessToken) {
-    return NextResponse.redirect(new URL('/dashboard', request.url));
+  // Si es la página de login
+  if (pathname === '/login') {
+    if (accessToken) {
+      return NextResponse.redirect(new URL('/dashboard', request.url));
+    }
+
+    // Si no hay access token pero hay refresh token, intentar renovar y entrar
+    if (refreshToken) {
+      const tokens = await refreshTokens(request, refreshToken.value);
+      if (tokens) {
+        const response = NextResponse.redirect(new URL('/dashboard', request.url));
+
+        response.cookies.set("accessToken", tokens.accessToken, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === "production",
+          sameSite: "lax",
+          maxAge: 15 * 60,
+          path: "/",
+        });
+
+        response.cookies.set("refreshToken", tokens.refreshToken, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === "production",
+          sameSite: "lax",
+          maxAge: 7 * 24 * 60 * 60,
+          path: "/",
+        });
+
+        return response;
+      }
+    }
   }
 
   const isProtectedPath = protectedPaths.some(path => pathname.startsWith(path));
@@ -45,10 +73,10 @@ export async function middleware(request: NextRequest) {
   // Lógica de renovación de tokens si el access token expiró pero hay refresh token
   if (isProtectedPath && !accessToken && refreshToken) {
     const tokens = await refreshTokens(request, refreshToken.value);
-    
+
     if (tokens) {
       const response = NextResponse.next();
-      
+
       response.cookies.set("accessToken", tokens.accessToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",

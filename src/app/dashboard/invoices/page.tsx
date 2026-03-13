@@ -1,4 +1,6 @@
-import React from "react";
+"use client";
+
+import React, { useEffect } from "react";
 import { 
   Download, 
   Search, 
@@ -41,6 +43,7 @@ import {
   DropdownMenuItem, 
   DropdownMenuTrigger 
 } from "@/components/ui/dropdown-menu";
+import { redirect } from "next/navigation";
 
 const INVOICES_DATA = [
   {
@@ -82,6 +85,11 @@ const INVOICES_DATA = [
 ];
 
 export default function InvoicesPage() {
+
+  useEffect(() => {
+    redirect("/dashboard");
+  }, []);
+
   return (
     <div className="flex-1 space-y-6 p-4 pt-6 md:p-8">
       {/* Header */}
@@ -218,7 +226,7 @@ export default function InvoicesPage() {
                           <MoreHorizontal className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
+                      <DropdownMenuContent align="end" className="w-48">
                         <DropdownMenuItem>
                           <Eye className="mr-2 h-4 w-4 text-muted-foreground" />
                           <span>Ver detalle</span>

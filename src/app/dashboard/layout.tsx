@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -8,7 +7,7 @@ import {
   BookOpen,
   LayoutGrid,
   Users,
-  Receipt,
+  // Receipt,
   Settings,
   Store,
   LogOut,
@@ -40,7 +39,7 @@ const navigation = [
   { name: "Categorías", href: "/dashboard/categories", icon: Tags },
   { name: "Mesas", href: "/dashboard/tables", icon: LayoutGrid },
   { name: "Personal", href: "/dashboard/staff", icon: Users },
-  { name: "Facturación", href: "/dashboard/invoices", icon: Receipt },
+  // { name: "Facturación", href: "/dashboard/invoices", icon: Receipt },
   { name: "Configuración", href: "/dashboard/settings", icon: Settings },
 ];
 
@@ -83,7 +82,7 @@ function SidebarContent() {
                 }`}
               >
                 <item.icon
-                  className={`mr-3 h-5 w-5 flex-shrink-0 transition-colors ${
+                  className={`mr-3 h-5 w-5 shrink-0 transition-colors ${
                     isActive ? "text-white" : "text-slate-500 group-hover:text-slate-300"
                   }`}
                   aria-hidden="true"
@@ -125,13 +124,13 @@ export default function DashboardLayout({
     <RoleGuard>
       <div className="flex h-screen w-full bg-slate-50 overflow-hidden font-sans">
         {/* Desktop Sidebar */}
-        <div className="hidden lg:block lg:w-64 lg:flex-shrink-0">
+        <div className="hidden lg:block lg:w-64 lg:shrink-0">
           <SidebarContent />
         </div>
 
         <div className="flex flex-col flex-1 min-w-0">
           {/* Header */}
-          <header className="sticky top-0 z-10 flex h-16 flex-shrink-0 items-center justify-between gap-x-4 border-b border-slate-200 bg-white/80 backdrop-blur-md px-4 sm:gap-x-6 sm:px-6 lg:px-8">
+          <header className="sticky top-0 z-10 flex h-16 shrink-0 items-center justify-between gap-x-4 border-b border-slate-200 bg-white/80 backdrop-blur-md px-4 sm:gap-x-6 sm:px-6 lg:px-8">
             
             <div className="flex items-center gap-4">
               <Sheet>

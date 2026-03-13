@@ -52,3 +52,94 @@ export async function loginAction(email: string, password: string) {
     return { success: false, error: "Error de conexión con el servidor" };
   }
 }
+
+export async function refreshAction() {
+  try {
+    const cookieStore = await cookies();
+    const refreshToken = cookieStore.get("refreshToken")?.value;
+
+    if (!refreshToken) return { success: false };
+
+    const apiUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000";
+
+    const res = await fetch(`${apiUrl}/tenant/auth/refresh`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ refreshToken }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok || !data.success) {
+      return { success: false };
+    }
+
+    const { accessToken: newAccessToken, refreshToken: newRefreshToken } = data.data.tokens;
+
+    cookieStore.set("accessToken", newAccessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 15 * 60,
+      path: "/",
+    });
+
+    cookieStore.set("refreshToken", newRefreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 7 * 24 * 60 * 60,
+      path: "/",
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error in refreshAction:", error);
+    return { success: false };
+  }
+}
+
+export async function getSessionServer() {
+  try {
+    const cookieStore = await cookies();
+    let accessToken = cookieStore.get("accessToken")?.value;
+    const refreshToken = cookieStore.get("refreshToken")?.value;
+
+    if (!accessToken && !refreshToken) return null;
+
+    if (!accessToken && refreshToken) {
+      const refreshResult = await refreshAction();
+      if (!refreshResult.success) return null;
+      // Re-get the access token after refresh
+      accessToken = (await cookies()).get("accessToken")?.value;
+    }
+
+    if (!accessToken) return null;
+
+    const apiUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000";
+    const slug = await getTenantSlugServer();
+
+    const res = await fetch(`${apiUrl}/tenant/auth/me`, {
+      headers: {
+        "Authorization": `Bearer ${accessToken}`,
+        "x-schema-tenant": slug,
+      },
+    });
+
+    if (!res.ok) {
+      // If unauthorized, try one refresh if we haven't already
+      if (refreshToken && !accessToken) {
+         // This logic is a bit redundant now with the check above, but good for safety
+      }
+      return null;
+    }
+
+    const data = await res.json();
+    return data.success ? data.data : null;
+  } catch (error) {
+    console.error("Error in getSessionServer:", error);
+    return null;
+  }
+}

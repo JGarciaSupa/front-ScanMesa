@@ -369,7 +369,7 @@ export default function MenuManagementPage() {
           {filteredProducts.map((product) => (
             <Card
               key={product.id}
-              className={`overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-lg flex flex-col ${
+              className={`py-0 gap-0 overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-lg flex flex-col ${
                 !product.isAvailable ? "opacity-60 saturate-50" : ""
               }`}
             >

@@ -263,7 +263,7 @@ export default function TablesPage() {
           <p className="text-muted-foreground animate-pulse">Cargando mesas...</p>
         </div>
       ) : (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {tables.map((table) => {
             const isFree = table.status === "free";
             const isOccupied = table.status === "occupied";
@@ -272,7 +272,7 @@ export default function TablesPage() {
               <Card
                 key={table.id}
                 className={cn(
-                  "flex flex-col relative overflow-hidden transition-all duration-200 hover:shadow-md border",
+                  "py-0 flex flex-col relative overflow-hidden transition-all duration-200 hover:shadow-md border",
                   "border-border"
                 )}
               >
@@ -302,14 +302,17 @@ export default function TablesPage() {
                           <MoreVertical className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
+                      <DropdownMenuContent align="end" className="w-42">
                         <DropdownMenuItem onClick={() => handleOpenEdit(table)}>
                           <Pencil className="mr-2 h-4 w-4" />
-                          Editar mesa
+                          <span className="whitespace-nowrap">Editar mesa</span>
                         </DropdownMenuItem>
-                        <DropdownMenuItem className="text-red-600 focus:bg-red-50 focus:text-red-700 dark:focus:bg-red-950" onClick={() => setTableToDelete(table)}>
+                        <DropdownMenuItem 
+                          className="text-red-600 focus:bg-red-50 focus:text-red-700 dark:focus:bg-red-950" 
+                          onClick={() => setTableToDelete(table)}
+                        >
                           <Trash2 className="mr-2 h-4 w-4" />
-                          Eliminar mesa
+                          <span className="whitespace-nowrap">Eliminar mesa</span>
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -414,7 +417,7 @@ export default function TablesPage() {
               <br/><br/>Esta acción no se puede deshacer y borrará los datos asociados.
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter className="gap-2 sm:gap-0">
+          <DialogFooter className="gap-1">
             <Button variant="outline" onClick={() => setTableToDelete(null)}>Cancelar</Button>
             <Button variant="destructive" onClick={handleDeleteTable}>Eliminar Mesa</Button>
           </DialogFooter>

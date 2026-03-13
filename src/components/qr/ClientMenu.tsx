@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Clock, MapPin, ShoppingBag, Plus, Minus, Trash2, CheckCircle2, Share2, Receipt } from "lucide-react";
+import { Clock, MapPin, ShoppingBag, Plus, Minus, Trash2, CheckCircle2, Share2, Receipt, AlertCircle } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetFooter } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
@@ -28,28 +29,28 @@ type CartItem = {
   quantity: number;
 };
 
-const MOCK_CATEGORIES = [
-  { id: 1, name: "Entrantes" },
-  { id: 2, name: "Pizzas" },
-  { id: 3, name: "Bebidas" },
-  { id: 4, name: "Postres" },
-];
-
-const MOCK_PRODUCTS: Product[] = [
-  { id: 101, categoryId: 1, name: "Burrata", price: 12.5, description: "Con tomate cherry rociado en AOVE y pesto", imageUrl: "https://images.unsplash.com/photo-1608897013039-887f214b985c?q=80&w=600&auto=format&fit=crop" },
-  { id: 102, categoryId: 1, name: "Provolone", price: 9.0, description: "Fundido con orégano y un toque de ají", imageUrl: "https://plus.unsplash.com/premium_photo-1671542981545-2070ab950882?q=80&w=600&auto=format&fit=crop" },
-  { id: 103, categoryId: 2, name: "Pizza Margarita", price: 10.0, description: "Tomate San Marzano, mozzarella fior di latte, albahaca", imageUrl: "https://images.unsplash.com/photo-1574071318508-1cdbab80d002?q=80&w=600&auto=format&fit=crop" },
-  { id: 104, categoryId: 2, name: "Pizza Diavola", price: 13.0, description: "Pepperoni picante estilo napolitano", imageUrl: "https://images.unsplash.com/photo-1628840042765-356cda07504e?q=80&w=600&auto=format&fit=crop" },
-  { id: 105, categoryId: 3, name: "Cerveza Artesanal", price: 4.5, description: "IPA local muy refrescante y aromática (33cl)", imageUrl: "https://images.unsplash.com/photo-1538485395224-329273c52de3?q=80&w=600&auto=format&fit=crop" },
-  { id: 106, categoryId: 4, name: "Tiramisú", price: 6.0, description: "Casero con mascarpone puro y café de especialidad", imageUrl: "https://images.unsplash.com/photo-1571115177098-24ec42ed204d?q=80&w=600&auto=format&fit=crop" },
-];
-
 interface ClientMenuProps {
   tableId: string;
-  tenantData: any;
+  tenantData: {
+    info: {
+      id: number;
+      name: string;
+      logoUrl: string | null;
+      bannerUrl: string | null;
+      currency: string | null;
+      defaultTaxRate: string | null;
+    };
+    categories: { id: number; name: string }[];
+    products: Product[];
+  };
 }
 
 export default function ClientMenu({ tableId, tenantData }: ClientMenuProps) {
+  const router = useRouter();
+  const [guestId, setGuestId] = useState<number | null>(null);
+  const [sessionId, setSessionId] = useState<number | null>(null);
+  const [tableName, setTableName] = useState("");
+  const [internalTableId, setInternalTableId] = useState<number | null>(null);
   const [guestName, setGuestName] = useState("");
   const [nameInput, setNameInput] = useState("");
   const [sessionCode, setSessionCode] = useState("");
@@ -57,37 +58,189 @@ export default function ClientMenu({ tableId, tenantData }: ClientMenuProps) {
   const [isTableOccupied, setIsTableOccupied] = useState<boolean>(false);
   const [isCodePreFilled, setIsCodePreFilled] = useState<boolean>(false);
   const [cart, setCart] = useState<CartItem[]>([]);
-  const [selectedCategoryId, setSelectedCategoryId] = useState<number>(MOCK_CATEGORIES[0].id);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<number>(0);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [toastType, setToastType] = useState<"success" | "error">("success");
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSessionChecking, setIsSessionChecking] = useState(true);
+
+  const getTenantSlug = () => {
+    const host = window.location.hostname;
+    const subDomain = host.split('.')[0] ?? "";
+    return subDomain.replace('-', '_');
+  };
 
   useEffect(() => {
+    const fetchTableInfo = async () => {
+      try {
+        const tenantSlug = getTenantSlug();
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/tenant/tables/hash/${tableId}`, {
+          headers: { "x-schema-tenant": tenantSlug },
+        });
+        const result = await response.json();
+        if (result.success && result.data) {
+          setTableName(result.data.name);
+          setInternalTableId(result.data.id);
+        } else {
+          router.push('/qr');
+        }
+      } catch (error) {
+        console.error("Error fetching table info:", error);
+        router.push('/qr');
+      }
+    };
+
+    const checkSession = async () => {
+      try {
+        const tenantSlug = getTenantSlug();
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/tenant/orders/session/${tableId}`, {
+          headers: { "x-schema-tenant": tenantSlug },
+        });
+        const result = await response.json();
+        
+        if (result.success) {
+          if (result.data) {
+            setIsTableOccupied(true);
+            setSessionCode(result.data.code);
+            setSessionId(result.data.id);
+
+            // Recuperar sesión persistida si coincide con la sesión activa de la mesa
+            const savedSession = localStorage.getItem(`table_session_${tableId}`);
+            if (savedSession) {
+              const { guestId: savedGuestId, guestName: savedGuestName, sessionId: savedSessionId } = JSON.parse(savedSession);
+              if (savedSessionId === result.data.id) {
+                setGuestId(savedGuestId);
+                setGuestName(savedGuestName);
+              }
+            }
+          } else {
+            // Mesa está libre
+            localStorage.removeItem(`table_session_${tableId}`);
+            setIsTableOccupied(false);
+            setGuestId(null);
+            setGuestName("");
+          }
+        }
+      } catch (error) {
+        console.error("Error checking session:", error);
+      } finally {
+        setIsSessionChecking(false);
+      }
+    };
+
+    fetchTableInfo();
+    checkSession();
+
     if (typeof window !== "undefined") {
       const urlParams = new URLSearchParams(window.location.search);
       const codeParam = urlParams.get("code");
-      const occupiedParam = urlParams.get("occupied");
       
       if (codeParam) {
         setCodeInput(codeParam.toUpperCase());
-        setIsTableOccupied(true);
         setIsCodePreFilled(true);
-      } else if (occupiedParam === "true") {
-        setIsTableOccupied(true);
       }
     }
-  }, []);
+  }, [tableId]);
+
+  if (isSessionChecking) {
+    return (
+      <div className="w-full min-h-screen bg-[#FAF8F4] flex flex-col items-center justify-center p-6 text-center">
+        <div className="h-10 w-10 border-4 border-zinc-200 border-t-zinc-900 rounded-full animate-spin mb-4" />
+        <p className="text-zinc-500 font-medium">Cargando mesa...</p>
+      </div>
+    );
+  }
 
   const isModalOpen = !guestName;
 
-  const handleJoin = (e: React.FormEvent) => {
+  const handleJoin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (nameInput.trim().length > 0) {
-      if (isTableOccupied && codeInput.trim().length < 6) {
-        showToast("Código de 6 dígitos requerido.");
-        return;
+      setIsLoading(true);
+      try {
+        const tenantSlug = getTenantSlug();
+        if (!isTableOccupied) {
+          // Abrir nueva mesa
+          const generatedCode = Math.floor(100000 + Math.random() * 900000).toString();
+          const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/tenant/orders/session/open`, {
+            method: 'POST',
+            headers: { 
+              'Content-Type': 'application/json',
+              'x-schema-tenant': tenantSlug 
+            },
+            body: JSON.stringify({
+              tableId: internalTableId || parseInt(tableId),
+              guestName: nameInput.trim(),
+              code: generatedCode
+            })
+          });
+          const result = await response.json();
+          if (result.success) {
+            const newGuestName = nameInput.trim();
+            const newGuestId = result.data.guest.id;
+            const newSessionId = result.data.session.id;
+
+            setGuestName(newGuestName);
+            setGuestId(newGuestId);
+            setSessionId(newSessionId);
+            setSessionCode(result.data.session.code);
+            
+            // Persistir sesión
+            localStorage.setItem(`table_session_${tableId}`, JSON.stringify({
+              guestId: newGuestId,
+              guestName: newGuestName,
+              sessionId: newSessionId
+            }));
+
+            showToast("Mesa lista", "success");
+          } else {
+            showToast("Error", "error");
+          }
+        } else {
+          // Unirse a mesa existente
+          if (codeInput.trim().length < 6 && !isCodePreFilled) {
+            showToast("Código incompleto", "error");
+            return;
+          }
+          const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/tenant/orders/session/join`, {
+            method: 'POST',
+            headers: { 
+              'Content-Type': 'application/json',
+              'x-schema-tenant': tenantSlug 
+            },
+            body: JSON.stringify({
+              sessionId: sessionId,
+              guestName: nameInput.trim(),
+              code: codeInput.trim()
+            })
+          });
+          const result = await response.json();
+          if (result.success) {
+            const newGuestName = nameInput.trim();
+            const newGuestId = result.data.id;
+
+            setGuestName(newGuestName);
+            setGuestId(newGuestId);
+
+            // Persistir sesión
+            localStorage.setItem(`table_session_${tableId}`, JSON.stringify({
+              guestId: newGuestId,
+              guestName: newGuestName,
+              sessionId: sessionId
+            }));
+
+            showToast("Bienvenido", "success");
+          } else {
+            setCodeInput("");
+            showToast("Código inválido", "error");
+          }
+        }
+      } catch (error) {
+        console.error("Error joining table:", error);
+        showToast("Fallo red", "error");
+      } finally {
+        setIsLoading(false);
       }
-      setGuestName(nameInput.trim());
-      // Si la mesa estaba ocupada validamos codigo, si es mesa nueva generamos 6 digitos.
-      setSessionCode(codeInput.trim() || Math.floor(100000 + Math.random() * 900000).toString());
     }
   };
 
@@ -110,9 +263,10 @@ export default function ClientMenu({ tableId, tenantData }: ClientMenuProps) {
     }
   };
 
-  const showToast = (message: string) => {
+  const showToast = (message: string, type: "success" | "error" = "success") => {
     setToastMessage(message);
-    setTimeout(() => setToastMessage(null), 2000);
+    setToastType(type);
+    setTimeout(() => setToastMessage(null), 2500);
   };
 
   const addToCart = (product: Product) => {
@@ -125,7 +279,7 @@ export default function ClientMenu({ tableId, tenantData }: ClientMenuProps) {
       }
       return [...prev, { product, quantity: 1 }];
     });
-    showToast(`¡Agregado ${product.name}!`);
+    showToast(`${product.name} +1`, "success");
   };
 
   const updateQuantity = (productId: number, delta: number) => {
@@ -145,23 +299,62 @@ export default function ClientMenu({ tableId, tenantData }: ClientMenuProps) {
     setCart((prev) => prev.filter((item) => item.product.id !== productId));
   };
 
-  const confirmOrder = () => {
-    alert("¡Pedido enviado a cocina!");
-    setCart([]);
+  const confirmOrder = async () => {
+    if (!sessionId || !guestId) return;
+    
+    setIsLoading(true);
+    try {
+      const tenantSlug = getTenantSlug();
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/tenant/orders`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-schema-tenant': tenantSlug 
+        },
+        body: JSON.stringify({
+          sessionId,
+          guestId,
+          items: cart.map(item => ({
+            productId: item.product.id,
+            quantity: item.quantity
+          }))
+        })
+      });
+      const result = await response.json();
+      if (result.success) {
+        showToast("¡Pedido enviado a cocina!");
+        setCart([]);
+      }
+    } catch (error) {
+      console.error("Error confirming order:", error);
+      showToast("Error al enviar el pedido");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const cartTotalElements = cart.reduce((acc, item) => acc + item.quantity, 0);
   const cartTotalPrice = cart.reduce((acc, item) => acc + item.product.price * item.quantity, 0);
 
-  const filteredProducts = MOCK_PRODUCTS.filter((p) => p.categoryId === selectedCategoryId);
+  const filteredProducts = selectedCategoryId === 0 
+    ? tenantData.products 
+    : tenantData.products.filter((p) => Number(p.categoryId) === selectedCategoryId);
 
   return (
     <div className="w-full max-w-480 mx-auto min-h-screen bg-[#FAF8F4] relative pb-28">
-      {/* Toast Animado */}
+      {/* Toast Animado Ultracorto */}
       {toastMessage && (
-        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 bg-black/90 text-white px-4 py-2 rounded-full shadow-lg flex items-center gap-2 transform transition-all animate-in fade-in slide-in-from-top-4">
-          <CheckCircle2 className="w-4 h-4 text-green-400" />
-          <span className="text-sm font-medium">{toastMessage}</span>
+        <div className={`fixed top-6 left-1/2 -translate-x-1/2 z-[100] px-4 py-2.5 rounded-full shadow-lg flex items-center gap-2 transform transition-all animate-in fade-in slide-in-from-top-4 border ${
+          toastType === "success" 
+          ? "bg-zinc-900 text-white border-zinc-800" 
+          : "bg-red-600 text-white border-red-500"
+        }`}>
+          {toastType === "success" ? (
+            <CheckCircle2 className="w-4 h-4 text-green-400" />
+          ) : (
+            <AlertCircle className="w-4 h-4 text-white" />
+          )}
+          <span className="text-sm font-bold">{toastMessage}</span>
         </div>
       )}
 
@@ -176,7 +369,7 @@ export default function ClientMenu({ tableId, tenantData }: ClientMenuProps) {
           showCloseButton={false}
         >
           <DialogHeader>
-            <DialogTitle className="text-xl font-bold text-center">¡Bienvenido a la Mesa {tableId}!</DialogTitle>
+            <DialogTitle className="text-xl font-bold text-center">¡Bienvenido a la {tableName || `Mesa ${tableId}`}!</DialogTitle>
             <DialogDescription className="text-center pt-2 pb-4 text-base">
               {isTableOccupied 
                 ? isCodePreFilled 
@@ -204,12 +397,12 @@ export default function ClientMenu({ tableId, tenantData }: ClientMenuProps) {
                   required
                 >
                   <InputOTPGroup className="gap-2">
-                    <InputOTPSlot index={0} className="w-12 h-14 text-xl rounded-xl border-zinc-200 font-bold" />
-                    <InputOTPSlot index={1} className="w-12 h-14 text-xl rounded-xl border-zinc-200 font-bold" />
-                    <InputOTPSlot index={2} className="w-12 h-14 text-xl rounded-xl border-zinc-200 font-bold" />
-                    <InputOTPSlot index={3} className="w-12 h-14 text-xl rounded-xl border-zinc-200 font-bold" />
-                    <InputOTPSlot index={4} className="w-12 h-14 text-xl rounded-xl border-zinc-200 font-bold" />
-                    <InputOTPSlot index={5} className="w-12 h-14 text-xl rounded-xl border-zinc-200 font-bold" />
+                    <InputOTPSlot index={0} className="w-10 h-12 text-lg rounded-xl border border-zinc-200 font-bold !rounded-xl" />
+                    <InputOTPSlot index={1} className="w-10 h-12 text-lg rounded-xl border border-zinc-200 font-bold !rounded-xl" />
+                    <InputOTPSlot index={2} className="w-10 h-12 text-lg rounded-xl border border-zinc-200 font-bold !rounded-xl" />
+                    <InputOTPSlot index={3} className="w-10 h-12 text-lg rounded-xl border border-zinc-200 font-bold !rounded-xl" />
+                    <InputOTPSlot index={4} className="w-10 h-12 text-lg rounded-xl border border-zinc-200 font-bold !rounded-xl" />
+                    <InputOTPSlot index={5} className="w-10 h-12 text-lg rounded-xl border border-zinc-200 font-bold !rounded-xl" />
                   </InputOTPGroup>
                 </InputOTP>
               </div>
@@ -224,22 +417,13 @@ export default function ClientMenu({ tableId, tenantData }: ClientMenuProps) {
 
             <Button
               type="submit"
-              disabled={!nameInput.trim() || (isTableOccupied && codeInput.length < 6)}
+              disabled={isLoading || !nameInput.trim() || (isTableOccupied && !isCodePreFilled && codeInput.length < 6)}
               className="h-12 rounded-xl text-lg font-semibold w-full mt-2"
             >
-              {isTableOccupied ? "Unirse a la mesa" : "Abrir nueva mesa"}
+              {isLoading ? "Procesando..." : (isTableOccupied ? "Unirse a la mesa" : "Abrir nueva mesa")}
             </Button>
             
-            {/* Simulación para probar ambos ciclos localmente sin interactuar con un API */}
-            <div className="flex justify-center mt-2">
-              <button 
-                type="button" 
-                onClick={() => setIsTableOccupied(!isTableOccupied)}
-                className="text-xs text-zinc-400 hover:text-zinc-600 underline"
-              >
-                (Mock: Alternar estado de mesa {isTableOccupied ? "ocupada" : "libre"})
-              </button>
-            </div>
+            {/* Simulación eliminada para producción */}
           </form>
         </DialogContent>
       </Dialog>
@@ -255,26 +439,28 @@ export default function ClientMenu({ tableId, tenantData }: ClientMenuProps) {
           className="absolute inset-0"
           style={{ background: "linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.8) 100%)" }}
         />
-        <div className="absolute top-4 right-4 flex items-center gap-2 z-10">
-          <Badge variant="secondary" className="bg-white/90 text-black hover:bg-white border-0 font-medium whitespace-nowrap">
-            📍 Mesa {tableId} • Cód: {sessionCode}
+        <div className="absolute top-4 left-0 right-0 px-4 flex flex-wrap items-center justify-between gap-2 z-10">
+          <Badge variant="secondary" className="bg-white/95 text-black border-0 font-bold whitespace-nowrap text-[10px] md:text-sm py-1 px-2">
+            📍 {tableName || `Mesa ${tableId}`} • {sessionCode}
           </Badge>
-          <Button 
-            variant="secondary" 
-            size="icon" 
-            className="bg-white/90 hover:bg-white text-black h-6 w-6 rounded-full shrink-0"
-            onClick={handleShare}
-            title="Compartir mesa"
-          >
-            <Share2 className="w-3.5 h-3.5" />
-          </Button>
-          <Link href={`/qr/${tableId}/checkout`}>
-            <Button variant="secondary" size="sm" className="bg-white/90 hover:bg-white text-black border-0 font-medium">
-              <Receipt className="w-4 h-4 mr-2" />
-              Ver cuenta
+          
+          <div className="flex items-center gap-1.5 ml-auto">
+            <Button 
+              variant="secondary" 
+              size="icon" 
+              className="bg-white/95 hover:bg-white text-black h-8 w-8 rounded-full shrink-0 shadow-sm"
+              onClick={handleShare}
+            >
+              <Share2 className="w-4 h-4" />
             </Button>
-          </Link>
-          <ButtonWaiterdCalled />
+            <Link href={`/qr/${tableId}/checkout`}>
+              <Button variant="secondary" size="sm" className="bg-white/95 hover:bg-white text-black border-0 font-bold h-8 px-3 rounded-full shadow-sm text-xs">
+                <Receipt className="w-3.5 h-3.5 mr-1" />
+                Cuenta
+              </Button>
+            </Link>
+            <ButtonWaiterdCalled tableId={internalTableId || parseInt(tableId)} />
+          </div>
         </div>
         <div className="absolute bottom-0 left-0 right-0 p-5 flex items-end gap-4 z-10">
           <Avatar className="w-16 h-16 md:w-20 md:h-20 border-2 border-white/20 shadow-xl shrink-0 bg-white">
@@ -292,7 +478,7 @@ export default function ClientMenu({ tableId, tenantData }: ClientMenuProps) {
               {tenantData.info.name}
             </h1>
             <div className="flex items-center gap-2 mt-1.5 opacity-80">
-              <span className="text-white text-xs font-medium flex items-center gap-1 bg-black/30 px-2 py-0.5 rounded-full backdrop-blur-sm">
+              <span className="text-white text-xs font-medium flex items-center gap-1 bg-black/30 py-0.5 rounded-full backdrop-blur-sm">
                 <Clock className="w-3.5 h-3.5" />
                 <span>Abierto · Cierra a las 23:30</span>
               </span>
@@ -303,10 +489,21 @@ export default function ClientMenu({ tableId, tenantData }: ClientMenuProps) {
 
       {/* Contenido interactivo: Categorías y Productos */}
       <div className="sticky top-0 z-40 bg-[#FAF8F4]/95 backdrop-blur-md border-b border-stone-200/60 py-3">
-        <div className="max-w-7xl mx-auto px-4">
-          <ScrollArea className="w-full whitespace-nowrap">
-            <div className="flex w-max space-x-2">
-              {MOCK_CATEGORIES.map((cat) => (
+        <div className="max-w-7xl mx-auto">
+          <ScrollArea className="w-full">
+            <div className="flex w-max space-x-2 px-4 pb-2">
+              <Button
+                variant={selectedCategoryId === 0 ? "default" : "secondary"}
+                className={`rounded-full px-5 font-medium transition-all ${
+                  selectedCategoryId === 0 
+                  ? "bg-zinc-900 text-white shadow-md" 
+                  : "bg-white text-zinc-600 hover:bg-zinc-100 border border-stone-200"
+                }`}
+                onClick={() => setSelectedCategoryId(0)}
+              >
+                Todos
+              </Button>
+              {tenantData.categories.map((cat) => (
                 <Button
                   key={cat.id}
                   variant={selectedCategoryId === cat.id ? "default" : "secondary"}
@@ -329,33 +526,34 @@ export default function ClientMenu({ tableId, tenantData }: ClientMenuProps) {
       <main className="px-4 py-6 max-w-7xl mx-auto">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {filteredProducts.map((product) => (
-            <Card key={product.id} className="overflow-hidden border-0 shadow-sm rounded-2xl bg-white hover:shadow-md transition-shadow">
-              <div className="flex h-32 md:h-40">
-                <div className="w-2/5 shrink-0 bg-stone-100 flex-1 relative">
+            <Card key={product.id} className="py-0 overflow-hidden border-0 shadow-sm rounded-2xl bg-white hover:shadow-md transition-shadow">
+              <div className="flex flex-row h-28 md:h-40">
+                <div className="w-1/3 min-w-[100px] shrink-0 bg-stone-100 relative overflow-hidden">
                   <img
-                    src={product.imageUrl}
+                    src={product.imageUrl || "/placeholder-food.jpg"}
                     alt={product.name}
-                    className="w-full h-full object-cover"
+                    className="absolute inset-0 w-full h-full object-cover"
+                    loading="lazy"
                   />
                 </div>
-                <div className="p-4 flex flex-col justify-between w-full h-full">
-                  <div>
-                    <h3 className="font-bold text-base md:text-lg text-zinc-900 leading-tight mb-1">{product.name}</h3>
-                    <p className="text-xs md:text-sm text-zinc-500 line-clamp-2 md:line-clamp-3 leading-snug">
+                <div className="flex-1 p-3 md:p-4 flex flex-col justify-between min-w-0">
+                  <div className="overflow-hidden">
+                    <h3 className="font-bold text-sm md:text-lg text-zinc-900 leading-tight mb-0.5 truncate">{product.name}</h3>
+                    <p className="text-[11px] md:text-sm text-zinc-500 line-clamp-2 leading-tight">
                       {product.description}
                     </p>
                   </div>
-                  <div className="flex items-center justify-between mt-2">
-                    <span className="font-bold text-base text-zinc-900">
-                      €{product.price.toFixed(2)}
+                  <div className="flex items-center justify-between mt-1">
+                    <span className="font-bold text-sm md:text-base text-zinc-900">
+                      €{Number(product.price).toFixed(2)}
                     </span>
                     <Button
                       size="icon"
                       variant="default"
-                      className="w-8 h-8 rounded-full bg-zinc-900 hover:bg-zinc-800 shadow-md transform active:scale-95 transition-transform"
+                      className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-zinc-900 hover:bg-zinc-800 shadow-sm transform active:scale-90 transition-transform"
                       onClick={() => addToCart(product)}
                     >
-                      <Plus className="w-4 h-4 text-white" />
+                      <Plus className="w-4 h-4 md:w-5 md:h-5 text-white" />
                     </Button>
                   </div>
                 </div>
