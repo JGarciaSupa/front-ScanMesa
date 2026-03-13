@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,6 +24,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { toast } from "sonner";
 
 import {
   Search,
@@ -31,44 +32,135 @@ import {
   Pencil,
   Trash2,
   ArrowLeft,
-  GripVertical
+  GripVertical,
+  Loader2
 } from "lucide-react";
 
-// Mock Data de Categorías
-const INITIAL_CATEGORIES = [
-  { id: "1", name: "Entradas", description: "Aperitivos para empezar", count: 12, active: true },
-  { id: "2", name: "Pizzas", description: "Nuestras pizzas de masa madre", count: 8, active: true },
-  { id: "3", name: "Bebidas", description: "Refrescos, cervezas y vinos", count: 24, active: true },
-  { id: "4", name: "Postres", description: "El toque dulce final", count: 5, active: false },
-];
+interface Category {
+  id: number;
+  name: string;
+  description: string | null;
+  isActive: boolean;
+  count?: number; // Added for UI compatibility, though not in schema yet
+}
+
+import { 
+  getCategoriesAction, 
+  saveCategoryAction, 
+  deleteCategoryAction, 
+  toggleCategoryActiveAction 
+} from "@/app/actions/categories";
 
 export default function CategoriesPage() {
-  const [categories, setCategories] = useState(INITIAL_CATEGORIES);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [isSheetOpen, setIsSheetOpen] = useState(false);
-  const [editingCategory, setEditingCategory] = useState<any>(null);
+  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
-  // Filter
+  // Form states
+  const [formData, setFormData] = useState({
+    name: "",
+    description: "",
+    isActive: true
+  });
+
+  const fetchCategories = useCallback(async () => {
+    try {
+      setLoading(true);
+      const data = await getCategoriesAction();
+      if (data.success) {
+        setCategories(data.data);
+      } else {
+        toast.error(data.error || "Error al cargar categorías");
+      }
+    } catch (error) {
+      console.error("Error fetching categories:", error);
+      toast.error("Error de conexión");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchCategories();
+  }, [fetchCategories]);
+
   const filteredCategories = categories.filter((cat) =>
     cat.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const handleToggleActive = (id: string, currentState: boolean) => {
-    setCategories((prev) =>
-      prev.map((cat) =>
-        cat.id === id ? { ...cat, active: !currentState } : cat
-      )
-    );
+  const handleToggleActive = async (id: number, currentState: boolean) => {
+    try {
+      const data = await toggleCategoryActiveAction(id, !currentState);
+      if (data.success) {
+        setCategories((prev) =>
+          prev.map((cat) => (cat.id === id ? { ...cat, isActive: !currentState } : cat))
+        );
+        toast.success("Estado actualizado");
+      } else {
+        toast.error(data.error || "Error al actualizar estado");
+      }
+    } catch (error) {
+      toast.error("Error de conexión");
+    }
   };
 
   const openNewCategory = () => {
     setEditingCategory(null);
+    setFormData({ name: "", description: "", isActive: true });
     setIsSheetOpen(true);
   };
 
-  const openEditCategory = (category: any) => {
+  const openEditCategory = (category: Category) => {
     setEditingCategory(category);
+    setFormData({
+      name: category.name,
+      description: category.description || "",
+      isActive: category.isActive
+    });
     setIsSheetOpen(true);
+  };
+
+  const handleSave = async () => {
+    if (!formData.name.trim()) {
+      toast.error("El nombre es requerido");
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      const data = await saveCategoryAction(formData, editingCategory?.id);
+      
+      if (data.success) {
+        toast.success(editingCategory ? "Categoría actualizada" : "Categoría creada");
+        setIsSheetOpen(false);
+        fetchCategories();
+      } else {
+        toast.error(data.error || "Error al guardar");
+      }
+    } catch (error) {
+      toast.error("Error de conexión");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!confirm("¿Estás seguro de eliminar esta categoría?")) return;
+
+    try {
+      const data = await deleteCategoryAction(id);
+      if (data.success) {
+        setCategories((prev) => prev.filter((cat) => cat.id !== id));
+        toast.success("Categoría eliminada");
+      } else {
+        toast.error(data.error || "Error al eliminar");
+      }
+    } catch (error) {
+      toast.error("Error de conexión");
+    }
   };
 
   return (
@@ -114,13 +206,22 @@ export default function CategoriesPage() {
               <TableHead className="w-12 text-center"></TableHead>
               <TableHead>Nombre</TableHead>
               <TableHead className="hidden md:table-cell">Descripción</TableHead>
-              <TableHead className="text-center">Platos</TableHead>
+              {/* <TableHead className="text-center">Platos</TableHead> */}
               <TableHead className="text-center">Estado</TableHead>
               <TableHead className="text-right">Acciones</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredCategories.length > 0 ? (
+            {loading ? (
+              <TableRow>
+                <TableCell colSpan={5} className="h-32 text-center">
+                  <div className="flex flex-col items-center gap-2">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    <p className="text-muted-foreground">Cargando categorías...</p>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ) : filteredCategories.length > 0 ? (
               filteredCategories.map((category) => (
                 <TableRow key={category.id} className="group hover:bg-muted/20 transition-colors">
                   <TableCell className="text-center p-0 align-middle">
@@ -135,15 +236,10 @@ export default function CategoriesPage() {
                     {category.description || <span className="italic text-muted-foreground/50">Sin descripción</span>}
                   </TableCell>
                   <TableCell className="text-center">
-                    <span className="inline-flex items-center justify-center bg-secondary text-secondary-foreground font-semibold px-2.5 py-0.5 rounded-full text-xs min-w-[32px]">
-                      {category.count}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-center">
                     <div className="flex justify-center">
                       <Switch
-                        checked={category.active}
-                        onCheckedChange={() => handleToggleActive(category.id, category.active)}
+                        checked={category.isActive}
+                        onCheckedChange={() => handleToggleActive(category.id, category.isActive)}
                         className="scale-90"
                       />
                     </div>
@@ -162,6 +258,7 @@ export default function CategoriesPage() {
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8 text-muted-foreground hover:text-destructive transition-colors hover:bg-destructive/10"
+                        onClick={() => handleDelete(category.id)}
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -171,8 +268,8 @@ export default function CategoriesPage() {
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">
-                  No se encontraron categorías que coincidan.
+                <TableCell colSpan={5} className="h-32 text-center text-muted-foreground">
+                  No se encontraron categorías.
                 </TableCell>
               </TableRow>
             )}
@@ -205,7 +302,8 @@ export default function CategoriesPage() {
               <Label htmlFor="cat-name" className="text-sm font-medium">Nombre de la Categoría <span className="text-destructive">*</span></Label>
               <Input
                 id="cat-name"
-                defaultValue={editingCategory?.name || ""}
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 placeholder="Ej. Bebidas Calientes"
                 className="h-11 bg-background"
                 autoFocus
@@ -216,9 +314,10 @@ export default function CategoriesPage() {
               <Label htmlFor="cat-desc" className="text-sm font-medium">Descripción (Opcional)</Label>
               <Textarea
                 id="cat-desc"
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                 placeholder="Ej. Nuestra selección de tés e infusiones artesanales."
                 className="resize-none min-h-[90px] bg-background"
-                defaultValue={editingCategory?.description || ""}
               />
             </div>
 
@@ -232,7 +331,11 @@ export default function CategoriesPage() {
                     Si desactivas esta opción, todos los platillos dentro de esta categoría quedarán ocultos temporalmente.
                   </p>
                 </div>
-                <Switch id="cat-active" defaultChecked={editingCategory ? editingCategory.active : true} />
+                <Switch 
+                  id="cat-active" 
+                  checked={formData.isActive}
+                  onCheckedChange={(val) => setFormData({ ...formData, isActive: val })}
+                />
               </div>
             </div>
           </div>
@@ -240,9 +343,10 @@ export default function CategoriesPage() {
           <div className="p-6 border-t bg-background">
             <div className="flex flex-col-reverse sm:flex-row justify-end gap-3">
               <SheetClose asChild>
-                <Button variant="outline" className="w-full sm:w-auto h-11">Cancelar</Button>
+                <Button variant="outline" className="w-full sm:w-auto h-11" disabled={submitting}>Cancelar</Button>
               </SheetClose>
-              <Button className="w-full sm:w-auto h-11">
+              <Button className="w-full sm:w-auto h-11" onClick={handleSave} disabled={submitting}>
+                {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {editingCategory ? "Guardar Cambios" : "Crear Categoría"}
               </Button>
             </div>

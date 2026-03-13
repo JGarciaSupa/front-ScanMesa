@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -26,74 +26,183 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { QrCode, Eye, Plus, Download, Printer, Users, MoreVertical, Pencil, Trash2 } from "lucide-react";
+import { QrCode, Eye, Plus, Download, Printer, Users, MoreVertical, Pencil, Trash2, Loader2, Copy, Check } from "lucide-react";
 import { QRCodeCanvas } from "qrcode.react";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
+import { toPng } from "html-to-image";
 
 interface Table {
   id: number;
   name: string;
-  status: "free" | "occupied" | "attention";
+  status: "free" | "occupied";
   qrCodeHash: string;
   sessionElapsed?: string;
 }
 
-const mockTables: Table[] = [
-  { id: 1, name: "1", status: "free", qrCodeHash: "abc1" },
-  { id: 2, name: "2", status: "occupied", sessionElapsed: "45 min", qrCodeHash: "abc2" },
-  { id: 3, name: "3", status: "attention", sessionElapsed: "60 min", qrCodeHash: "abc3" },
-  { id: 4, name: "Terraza 1", status: "free", qrCodeHash: "abc4" },
-  { id: 5, name: "Barra A", status: "occupied", sessionElapsed: "15 min", qrCodeHash: "abc5" },
-  { id: 6, name: "Barra B", status: "free", qrCodeHash: "abc6" },
-  { id: 7, name: "7", status: "attention", sessionElapsed: "120 min", qrCodeHash: "abc7" },
-  { id: 8, name: "VIP", status: "free", qrCodeHash: "abc8" },
-];
+import { 
+  getTablesAction, 
+  saveTableAction, 
+  deleteTableAction 
+} from "@/app/actions/tables";
 
 export default function TablesPage() {
-  const [tables, setTables] = useState<Table[]>(mockTables);
+  const [tables, setTables] = useState<Table[]>([]);
+  const [loading, setLoading] = useState(true);
   const [isTableModalOpen, setIsTableModalOpen] = useState(false);
   const [editingTable, setEditingTable] = useState<Table | null>(null);
   const [tableToDelete, setTableToDelete] = useState<Table | null>(null);
   const [qrModalTable, setQrModalTable] = useState<Table | null>(null);
   const [sessionDrawerTable, setSessionDrawerTable] = useState<Table | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  // Form state
+  const [tableName, setTableName] = useState("");
 
   const qrRef = useRef<HTMLDivElement>(null);
+
+  const fetchTables = useCallback(async () => {
+    try {
+      setLoading(true);
+      const data = await getTablesAction();
+      if (data.success) {
+        setTables(data.data);
+      } else {
+        toast.error(data.error || "Error al cargar mesas");
+      }
+    } catch (error) {
+      toast.error("Error de conexión");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchTables();
+  }, [fetchTables]);
+
+  const handleCreateOrUpdate = async () => {
+    if (!tableName.trim()) {
+      toast.error("El nombre es requerido");
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      
+      // La creación ahora delega el hash al backend si es una mesa nueva
+      const res = await saveTableAction({ 
+        name: tableName,
+        // No enviamos qrCodeHash para que el backend lo genere
+      }, editingTable?.id);
+
+      if (res.success) {
+        toast.success(editingTable ? "Mesa actualizada" : "Mesa creada");
+        setIsTableModalOpen(false);
+        fetchTables();
+      } else {
+        toast.error(res.error || "Error al guardar");
+      }
+    } catch (error) {
+      toast.error("Error de conexión");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDeleteTable = async () => {
+    if (!tableToDelete) return;
+
+    try {
+      const data = await deleteTableAction(tableToDelete.id);
+      if (data.success) {
+        toast.success("Mesa eliminada");
+        setTableToDelete(null);
+        fetchTables();
+      } else {
+        toast.error(data.error || "Error al eliminar");
+      }
+    } catch (error) {
+      toast.error("Error de conexión");
+    }
+  };
+
+  const handleDownloadQR = async () => {
+    if (!qrRef.current || !qrModalTable) return;
+    
+    try {
+      // Usamos html-to-image para capturar todo el diseño del card
+      const dataUrl = await toPng(qrRef.current, {
+        quality: 1.0,
+        backgroundColor: '#ffffff',
+      });
+      
+      // Convertir dataUrl a Blob para evitar advertencias de "URL muy larga" o "No segura"
+      const response = await fetch(dataUrl);
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.download = `QR-Mesa-${qrModalTable.name}.png`;
+      document.body.appendChild(link); // Requerido en algunos navegadores
+      link.click();
+      document.body.removeChild(link);
+      
+      // Limpiar memoria
+      URL.revokeObjectURL(blobUrl);
+      
+      toast.success("Imagen descargada con éxito");
+    } catch (err) {
+      toast.error("No se pudo generar la imagen");
+      console.error(err);
+    }
+  };
+
+
+
+  const handleCopyLink = () => {
+    if (!qrModalTable) return;
+    const url = `${window.location.origin}/qr/${qrModalTable.qrCodeHash}`;
+    
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(url)
+        .then(() => {
+          setCopied(true);
+          toast.success("Enlace copiado al portapapeles");
+          setTimeout(() => setCopied(false), 2000);
+        })
+        .catch(err => {
+          console.error('Error al copiar: ', err);
+          toast.error("Error al copiar el enlace");
+        });
+    } else {
+      toast.error("La copia al portapapeles requiere una conexión segura (HTTPS)");
+    }
+  };
+
+  const handleOpenCreate = () => {
+    setEditingTable(null);
+    setTableName("");
+    setIsTableModalOpen(true);
+  };
+
+  const handleOpenEdit = (table: Table) => {
+    setEditingTable(table);
+    setTableName(table.name);
+    setIsTableModalOpen(true);
+  };
 
   // Statistics
   const totalTables = tables.length;
   const occupiedTables = tables.filter((t) => t.status !== "free").length;
   const freeTables = tables.filter((t) => t.status === "free").length;
 
-  const handleDownloadQR = () => {
-    if (!qrRef.current || !qrModalTable) return;
-    const canvas = qrRef.current.querySelector("canvas");
-    if (!canvas) return;
-
-    const dataUrl = canvas.toDataURL("image/png");
-    const link = document.createElement("a");
-    link.href = dataUrl;
-    link.download = `QR-${qrModalTable.name}.png`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
-  const handlePrintQR = () => {
-    window.print();
-  };
-
-  const handleOpenCreate = () => {
-    setEditingTable(null);
-    setIsTableModalOpen(true);
-  };
-
-  const handleOpenEdit = (table: Table) => {
-    setEditingTable(table);
-    setIsTableModalOpen(true);
-  };
-
   return (
     <div className="flex flex-col gap-6 p-4 md:p-8 max-w-7xl mx-auto w-full">
+
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
@@ -148,123 +257,120 @@ export default function TablesPage() {
       </div>
 
       {/* Grilla de Mesas compacta */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
-        {tables.map((table) => {
-          const isFree = table.status === "free";
-          const isOccupied = table.status === "occupied";
-          const isAttention = table.status === "attention";
+      {loading ? (
+        <div className="flex flex-col items-center justify-center py-20 gap-3">
+          <Loader2 className="h-10 w-10 animate-spin text-primary" />
+          <p className="text-muted-foreground animate-pulse">Cargando mesas...</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
+          {tables.map((table) => {
+            const isFree = table.status === "free";
+            const isOccupied = table.status === "occupied";
 
-          return (
-            <Card
-              key={table.id}
-              className={cn(
-                "flex flex-col relative overflow-hidden transition-all duration-200 hover:shadow-md border",
-                isAttention ? "border-amber-300 dark:border-amber-700 shadow-[0_0_15px_rgba(251,191,36,0.15)]" : "border-border"
-              )}
-            >
-              {/* Fondo tintado de la tarjeta */}
-              <div className={cn(
-                "p-4 flex flex-col h-full gap-3",
-                isFree && "bg-emerald-50/40 dark:bg-emerald-950/20",
-                isOccupied && "bg-red-50/40 dark:bg-red-950/20",
-                isAttention && "bg-amber-50/40 dark:bg-amber-950/20"
-              )}>
-                {/* Header: Etiqueta y Menú Opciones */}
-                <div className="flex justify-between items-start">
-                  <span className={cn(
-                    "inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ring-1 ring-inset bg-white dark:bg-black/50",
-                    isFree && "text-emerald-700 ring-emerald-600/30 dark:text-emerald-400 dark:ring-emerald-500/30",
-                    isOccupied && "text-red-700 ring-red-600/20 dark:text-red-400 dark:ring-red-500/30",
-                    isAttention && "text-amber-700 ring-amber-600/30 dark:text-amber-400 dark:ring-amber-500/30"
-                  )}>
+            return (
+              <Card
+                key={table.id}
+                className={cn(
+                  "flex flex-col relative overflow-hidden transition-all duration-200 hover:shadow-md border",
+                  "border-border"
+                )}
+              >
+                <div className={cn(
+                  "p-4 flex flex-col h-full gap-3",
+                  isFree && "bg-emerald-50/40 dark:bg-emerald-950/20",
+                  isOccupied && "bg-red-50/40 dark:bg-red-950/20"
+                )}>
+                  {/* Header: Etiqueta y Menú Opciones */}
+                  <div className="flex justify-between items-start">
                     <span className={cn(
-                      "mr-1.5 h-2 w-2 rounded-full",
-                      isFree && "bg-emerald-500",
-                      isOccupied && "bg-red-500",
-                      isAttention && "bg-amber-500 animate-pulse"
-                    )} />
-                    {isFree ? "Libre" : isAttention ? "Atención" : "Ocupada"}
-                  </span>
-                  
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground">
-                        <MoreVertical className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => handleOpenEdit(table)}>
-                        <Pencil className="mr-2 h-4 w-4" />
-                        Editar mesa
-                      </DropdownMenuItem>
-                      <DropdownMenuItem className="text-red-600 focus:bg-red-50 focus:text-red-700 dark:focus:bg-red-950" onClick={() => setTableToDelete(table)}>
-                        <Trash2 className="mr-2 h-4 w-4" />
-                        Eliminar mesa
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
+                      "inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ring-1 ring-inset bg-white dark:bg-black/50",
+                      isFree && "text-emerald-700 ring-emerald-600/30 dark:text-emerald-400 dark:ring-emerald-500/30",
+                      isOccupied && "text-red-700 ring-red-600/20 dark:text-red-400 dark:ring-red-500/30"
+                    )}>
+                      <span className={cn(
+                        "mr-1.5 h-2 w-2 rounded-full",
+                        isFree && "bg-emerald-500",
+                        isOccupied && "bg-red-500"
+                      )} />
+                      {isFree ? "Libre" : "Ocupada"}
+                    </span>
+                    
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground">
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => handleOpenEdit(table)}>
+                          <Pencil className="mr-2 h-4 w-4" />
+                          Editar mesa
+                        </DropdownMenuItem>
+                        <DropdownMenuItem className="text-red-600 focus:bg-red-50 focus:text-red-700 dark:focus:bg-red-950" onClick={() => setTableToDelete(table)}>
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          Eliminar mesa
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
 
-                {/* Número/Nombre de la Mesa y resúmen */}
-                <div className="flex flex-col items-center justify-center py-2 flex-grow">
-                  <span className="text-sm font-semibold text-muted-foreground uppercase opacity-80">Mesa</span>
-                  <span className={cn(
-                    "text-4xl font-black tracking-tighter mt-1 mb-2 text-center break-words max-w-full leading-none",
-                    isFree && "text-emerald-950 dark:text-emerald-50",
-                    isOccupied && "text-red-950 dark:text-red-50",
-                    isAttention && "text-amber-950 dark:text-amber-50"
-                  )}>
-                    {table.name}
-                  </span>
-                  
-                  <div className="flex items-center justify-center gap-2 h-5 mt-1">
-                    {!isFree && (
-                      <div className="flex items-center text-xs font-semibold text-muted-foreground/80 dark:text-muted-foreground">
-                        <span>{table.sessionElapsed} de sesión</span>
-                      </div>
-                    )}
-                    {isFree && (
-                      <span className="text-xs font-medium text-muted-foreground/60">Sin pedidos</span>
-                    )}
+                  {/* Número/Nombre de la Mesa y resúmen */}
+                  <div className="flex flex-col items-center justify-center py-2 grow">
+                    <span className="text-sm font-semibold text-muted-foreground uppercase opacity-80">Mesa</span>
+                    <span className={cn(
+                      "text-4xl font-black tracking-tighter mt-1 mb-2 text-center wrap-break-word max-w-full leading-none",
+                      isFree && "text-emerald-950 dark:text-emerald-50",
+                      isOccupied && "text-red-950 dark:text-red-50"
+                    )}>
+                      {table.name}
+                    </span>
+                    
+                    <div className="flex items-center justify-center gap-2 h-5 mt-1">
+                      {isOccupied && (
+                        <div className="flex items-center text-xs font-semibold text-muted-foreground/80 dark:text-muted-foreground">
+                          <span>Sesión activa</span>
+                        </div>
+                      )}
+                      {isFree && (
+                        <span className="text-xs font-medium text-muted-foreground/60">Disponible</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Botones de acción inferiores */}
+                  <div className="grid grid-cols-2 gap-2 mt-auto">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className={cn(
+                        "h-8 text-xs bg-white/60 dark:bg-black/40 hover:bg-white dark:hover:bg-black shadow-none",
+                        isFree ? "border-emerald-200 dark:border-emerald-800/50" : "border-red-200 dark:border-red-800/50"
+                      )}
+                      onClick={() => setSessionDrawerTable(table)}
+                    >
+                      <Eye className="w-3.5 h-3.5 mr-1.5" />
+                      Ver
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className={cn(
+                        "h-8 text-xs bg-white/60 dark:bg-black/40 hover:bg-white dark:hover:bg-black shadow-none",
+                        isFree ? "border-emerald-200 dark:border-emerald-800/50" : "border-red-200 dark:border-red-800/50"
+                      )}
+                      onClick={() => setQrModalTable(table)}
+                    >
+                      <QrCode className="w-3.5 h-3.5 mr-1.5" />
+                      QR
+                    </Button>
                   </div>
                 </div>
-
-                {/* Botones de acción inferiores */}
-                <div className="grid grid-cols-2 gap-2 mt-auto">
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className={cn(
-                      "h-8 text-xs bg-white/60 dark:bg-black/40 hover:bg-white dark:hover:bg-black shadow-none",
-                      isFree && "border-emerald-200 dark:border-emerald-800/50",
-                      isOccupied && "border-red-200 dark:border-red-800/50",
-                      isAttention && "border-amber-200 dark:border-amber-800/50"
-                    )}
-                    onClick={() => setSessionDrawerTable(table)}
-                  >
-                    <Eye className="w-3.5 h-3.5 mr-1.5" />
-                    Ver
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className={cn(
-                      "h-8 text-xs bg-white/60 dark:bg-black/40 hover:bg-white dark:hover:bg-black shadow-none",
-                      isFree && "border-emerald-200 dark:border-emerald-800/50",
-                      isOccupied && "border-red-200 dark:border-red-800/50",
-                      isAttention && "border-amber-200 dark:border-amber-800/50"
-                    )}
-                    onClick={() => setQrModalTable(table)}
-                  >
-                    <QrCode className="w-3.5 h-3.5 mr-1.5" />
-                    QR
-                  </Button>
-                </div>
-              </div>
-            </Card>
-          );
-        })}
-      </div>
+              </Card>
+            );
+          })}
+        </div>
+      )}
 
       {/* MODAL: Crear/Editar Mesa */}
       <Dialog open={isTableModalOpen} onOpenChange={setIsTableModalOpen}>
@@ -277,90 +383,108 @@ export default function TablesPage() {
           </DialogHeader>
           <div className="grid gap-6 py-4">
             <div className="grid gap-2">
-              <Label htmlFor="name">Nombre de la Mesa</Label>
+              <Label htmlFor="tableName">Nombre de la Mesa</Label>
               <Input
-                id="name"
+                id="tableName"
                 type="text"
                 placeholder="Ej: 12, Barra A, Terraza 5"
-                defaultValue={editingTable?.name || ""}
+                value={tableName}
+                onChange={(e) => setTableName(e.target.value)}
                 maxLength={50}
               />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsTableModalOpen(false)}>Cancelar</Button>
-            <Button onClick={() => setIsTableModalOpen(false)}>
+            <Button variant="outline" onClick={() => setIsTableModalOpen(false)} disabled={submitting}>Cancelar</Button>
+            <Button onClick={handleCreateOrUpdate} disabled={submitting}>
+              {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {editingTable ? "Guardar Cambios" : "Guardar Mesa"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* MODAL:  Eliminar Mesa (Confirmación) */}
+      {/* MODAL: Eliminar Mesa */}
       <Dialog open={!!tableToDelete} onOpenChange={(open) => !open && setTableToDelete(null)}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>Eliminar Mesa</DialogTitle>
             <DialogDescription>
               ¿Estás seguro de que deseas eliminar la mesa <strong>{tableToDelete?.name}</strong>? 
-              <br/><br/>Esta acción no se puede deshacer y borrará los códigos QR asociados a esta mesa de forma permanente.
+              <br/><br/>Esta acción no se puede deshacer y borrará los datos asociados.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2 sm:gap-0">
             <Button variant="outline" onClick={() => setTableToDelete(null)}>Cancelar</Button>
-            <Button variant="destructive" onClick={() => setTableToDelete(null)}>Eliminar Mesa</Button>
+            <Button variant="destructive" onClick={handleDeleteTable}>Eliminar Mesa</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* MODAL: Código QR */}
+      {/* MODAL: Código QR - REDISEÑADO SEGÚN SOLICITUD */}
       <Dialog open={!!qrModalTable} onOpenChange={(open) => !open && setQrModalTable(null)}>
-        <DialogContent className="sm:max-w-md print:max-w-none print:m-0 print:p-0 print:shadow-none print:border-none print:bg-white print:items-start text-center flex flex-col items-center justify-center p-8">
-          <DialogHeader className="print:hidden w-full text-center">
-            <DialogTitle className="text-center">Código QR - Mesa {qrModalTable?.name}</DialogTitle>
-            <DialogDescription className="text-center">
-              Escanea este código para acceder al menú de esta mesa.
+        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Código QR - Mesa {qrModalTable?.name}</DialogTitle>
+            <DialogDescription>
+              Escanea el código para el menú digital.
             </DialogDescription>
           </DialogHeader>
 
-          {/* QR Container -> Lo que se imprimirá */}
-          <div 
-            ref={qrRef} 
-            className="flex flex-col items-center justify-center bg-white p-8 rounded-2xl shadow-sm border mt-4 mb-4 print:shadow-none print:border-none print:p-4 w-full max-w-xs"
-          >
-            <QRCodeCanvas
-              value={`https://mipizzeria.yopido.com/qr/${qrModalTable?.qrCodeHash}`}
-              size={200}
-              level={"H"}
-              includeMargin={false}
-              className="mb-4"
-              imageSettings={{
-                src: "https://upload.wikimedia.org/wikipedia/commons/a/a7/React-icon.svg",
-                x: undefined,
-                y: undefined,
-                height: 48,
-                width: 48,
-                excavate: true,
-              }}
-            />
-            <h2 className="text-2xl font-black tracking-tight text-neutral-800 mt-2 uppercase">{qrModalTable?.name}</h2>
-            <p className="text-xs text-neutral-500 font-medium tracking-wide">Escanea para pedir</p>
+
+
+          {/* 2. Generación mejorada del QR (Lo que se imprime/descarga) - Más compacto */}
+          <div className="flex justify-center p-4 bg-muted/20 rounded-lg mt-3">
+            <div 
+              id="qr-to-print"
+              ref={qrRef} 
+              className="flex flex-col items-center bg-white p-4 shadow-sm border border-neutral-100 w-full max-w-[240px] text-black rounded-lg"
+            >
+              <div className="text-center mb-3">
+                <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest leading-none mb-1">Escanea para ver</p>
+                <h3 className="text-lg font-extrabold text-neutral-900 tracking-tight leading-none">Nuestro Menú</h3>
+              </div>
+              
+              <div className="bg-white p-1.5 border border-neutral-50 mb-3">
+                <QRCodeCanvas
+                  value={`${window.location.origin}/qr/${qrModalTable?.qrCodeHash}`}
+                  size={150}
+                  level={"H"}
+                  includeMargin={false}
+                />
+              </div>
+
+              <div className="space-y-1 mb-4 w-full text-center">
+                <p className="text-[10px] font-bold text-neutral-700">📱 Ordena desde tu celular</p>
+                <p className="text-[10px] font-bold text-neutral-700">🍔 Sin esperar al mesero</p>
+              </div>
+
+              <div className="w-full pt-3 border-t border-neutral-100 text-center">
+                <p className="text-2xl font-black text-neutral-900 leading-none">{qrModalTable?.name}</p>
+              </div>
+            </div>
           </div>
           
-          <div className="bg-muted px-3 py-2 rounded-md font-mono text-xs mb-4 text-center break-all text-muted-foreground w-full print:hidden">
-            mipizzeria.yopido.com/qr/{qrModalTable?.qrCodeHash}
-          </div>
-
-          <DialogFooter className="sm:justify-center flex-col sm:flex-row gap-2 w-full print:hidden">
-            <Button type="button" variant="outline" className="w-full sm:w-auto" onClick={handlePrintQR}>
-              <Printer className="mr-2 h-4 w-4" />
-              Imprimir
-            </Button>
-            <Button type="button" className="w-full sm:w-auto" onClick={handleDownloadQR}>
+          <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2 w-full mt-4 pt-4 border-t no-print">
+            <div className="flex items-center bg-muted/50 p-1 rounded-md border border-border min-w-0 overflow-hidden">
+              <span className="text-[11px] font-medium truncate px-2 text-muted-foreground flex-1 min-w-0">
+                {`${window.location.host}/qr/${qrModalTable?.qrCodeHash}`}
+              </span>
+              <Button 
+                size="icon" 
+                variant="ghost" 
+                className="h-8 w-8 shrink-0 hover:bg-background/50" 
+                onClick={handleCopyLink}
+              >
+                {copied ? <Check className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4 text-primary" />}
+              </Button>
+            </div>
+            
+            <Button type="button" size="sm" className="h-10 px-4 font-bold shrink-0" onClick={handleDownloadQR}>
               <Download className="mr-2 h-4 w-4" />
-              Descargar (PNG)
+              Descargar PNG
             </Button>
-          </DialogFooter>
+          </div>
         </DialogContent>
       </Dialog>
 
@@ -371,79 +495,16 @@ export default function TablesPage() {
             <DrawerHeader className="text-left">
               <DrawerTitle className="text-2xl font-bold uppercase">Mesa {sessionDrawerTable?.name}</DrawerTitle>
               <DrawerDescription>
-                {sessionDrawerTable?.status === "free" ? (
-                  "La mesa se encuentra libre en este momento. No hay consumo."
-                ) : (
-                  <>Sesión activa hace <strong className="text-foreground">{sessionDrawerTable?.sessionElapsed}</strong>.</>
-                )}
+                {sessionDrawerTable?.status === "free" ? "La mesa está libre." : "Sesión activa."}
               </DrawerDescription>
             </DrawerHeader>
             <div className="p-4 pb-8 flex flex-col gap-4">
-              {sessionDrawerTable?.status !== "free" ? (
-                <div className="flex flex-col gap-4">
-                  <div className="bg-muted/50 border p-4 rounded-xl space-y-3">
-                    <div className="flex justify-between items-center text-sm font-medium border-b pb-2">
-                      <span className="text-muted-foreground">Producto</span>
-                      <span className="text-muted-foreground">Subtotal</span>
-                    </div>
-                    <div className="flex justify-between items-center text-sm">
-                      <span className="font-medium">2x Pizza Margarita</span>
-                      <span>$24.00</span>
-                    </div>
-                    <div className="flex justify-between items-center text-sm">
-                      <span className="font-medium">3x Cerveza Artesanal</span>
-                      <span>$15.00</span>
-                    </div>
-                    <div className="flex justify-between items-center text-sm">
-                      <span className="font-medium">1x Ensalada César</span>
-                      <span>$9.00</span>
-                    </div>
-                    <div className="flex justify-between items-center pt-3 border-t font-bold text-lg">
-                      <span>Total</span>
-                      <span className="text-primary">$48.00</span>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col sm:flex-row gap-2 mt-2">
-                    <Button variant="outline" className="w-full" onClick={() => setSessionDrawerTable(null)}>
-                      Cerrar
-                    </Button>
-                    {sessionDrawerTable?.status === "attention" && (
-                      <Button variant="default" className="w-full bg-amber-500 hover:bg-amber-600 text-white border-amber-500">
-                        Marcar cuenta pagada
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              ) : (
-                <div className="py-8 flex flex-col items-center justify-center text-muted-foreground text-center bg-muted/40 rounded-xl border border-dashed">
-                  <QrCode className="h-10 w-10 mb-3 opacity-50" />
-                  <p className="text-sm px-4">Esta mesa está vacía. Lista para recibir a los próximos clientes.</p>
-                </div>
-              )}
+              <p className="text-sm text-center text-muted-foreground py-10">Contenido de sesión en desarrollo...</p>
+              <Button variant="outline" onClick={() => setSessionDrawerTable(null)}>Cerrar</Button>
             </div>
           </div>
         </DrawerContent>
       </Drawer>
-
-      {/* Print CSS Fix */}
-      <style dangerouslySetInnerHTML={{ __html: `
-        @media print {
-          body * {
-            visibility: hidden;
-          }
-          .print\\:max-w-none, .print\\:max-w-none * {
-            visibility: visible;
-          }
-          .print\\:max-w-none {
-            position: absolute;
-            left: 50%;
-            top: 50%;
-            transform: translate(-50%, -50%);
-            width: 100%;
-          }
-        }
-      ` }} />
     </div>
   );
 }
