@@ -27,7 +27,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { getTablesAction } from "@/app/actions/tables";
+import { getPosTablesAction, openPosSessionAction } from "@/app/actions/pos";
 import { closeSessionAction, getSessionItemsAction } from "@/app/actions/orders";
 
 // --- Types ---
@@ -63,7 +63,7 @@ export default function PosPage() {
   const fetchTables = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await getTablesAction();
+      const res = await getPosTablesAction();
       if (res.success) {
         setTables(res.data);
       } else {
@@ -103,6 +103,24 @@ export default function PosPage() {
       fetchSessionItems(table.activeSession.id);
     } else {
       setTableItems([]);
+    }
+  };
+
+  const handleOpenNewSession = async (tableId: number) => {
+    try {
+      setLoading(true);
+      const res = await openPosSessionAction(tableId);
+      if (res.success) {
+        toast.success("Mesa abierta correctamente");
+        fetchTables();
+        setSelectedTable(null);
+      } else {
+        toast.error(res.error || "Error al abrir mesa");
+      }
+    } catch (error) {
+      toast.error("Error de conexión");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -248,7 +266,17 @@ export default function PosPage() {
               <div className="text-center py-10 space-y-4">
                 <AlertCircle className="w-12 h-12 text-muted-foreground/20 mx-auto" />
                 <p className="text-muted-foreground">La mesa {selectedTable?.name} está actualmente disponible para nuevos clientes.</p>
-                <Button className="w-full h-11 bg-emerald-600" onClick={() => setSelectedTable(null)}>Cerrar</Button>
+                <div className="flex flex-col gap-3">
+                  <Button 
+                    className="w-full h-11 bg-emerald-600 hover:bg-emerald-700" 
+                    onClick={() => handleOpenNewSession(selectedTable!.id)}
+                    disabled={loading}
+                  >
+                    {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <PlusCircle className="w-4 h-4 mr-2" />}
+                    Abrir Nueva Mesa
+                  </Button>
+                  <Button variant="outline" className="w-full h-11" onClick={() => setSelectedTable(null)}>Cerrar</Button>
+                </div>
               </div>
             )}
           </div>
