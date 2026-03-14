@@ -1,13 +1,14 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { Clock, CheckCircle2, Siren, Loader2 } from "lucide-react";
+import { Clock, CheckCircle2, Siren, Loader2, Wifi, WifiOff } from "lucide-react";
 import Masonry from "react-masonry-css";
 import { toast } from "sonner";
 import { getKdsOrdersAction, markItemServedAction, markOrderCompleteAction } from "@/app/actions/orders";
+import { getSocketConfigAction } from "@/app/actions/socket-config";
 
 // Interfaces
 type OrderItem = {
@@ -32,6 +33,8 @@ export default function KDSPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [now, setNow] = useState(new Date());
+  const [isConnected, setIsConnected] = useState(false);
+  const socketRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 1000);
@@ -51,10 +54,91 @@ export default function KDSPage() {
     }
   }, []);
 
+  // Configuración de WebSocket NATIVO de BUN
   useEffect(() => {
+    let mounted = true;
+    let reconnectTimeout: any;
+
+    async function initSocket() {
+      const config = await getSocketConfigAction();
+      
+      if (!mounted) return;
+
+      if (socketRef.current) {
+        socketRef.current.close();
+      }
+
+      // En WebSocket nativo pasamos token y tenantId por la URL
+      const wsUrl = new URL(`${config.url.replace('http', 'ws')}/ws`);
+      wsUrl.searchParams.set('token', config.token || '');
+      wsUrl.searchParams.set('tenantId', config.slug || '');
+
+      const socket = new WebSocket(wsUrl.toString());
+      socketRef.current = socket;
+
+      socket.onopen = () => {
+        console.log('[WS Nativo] Conectado al servidor de cocina');
+        setIsConnected(true);
+      };
+
+      socket.onclose = () => {
+        console.log('[WS Nativo] Desconectado del servidor');
+        setIsConnected(false);
+        // Reintentar conexión tras 3 segundos
+        if (mounted) {
+          reconnectTimeout = setTimeout(initSocket, 3000);
+        }
+      };
+
+      socket.onerror = (error) => {
+        console.error('[WS Nativo] Error de conexión');
+      };
+
+      socket.onmessage = (event) => {
+        try {
+          const { event: eventName, data } = JSON.parse(event.data);
+          
+          if (eventName === 'order:created') {
+            console.log('[WS Nativo] Nuevo pedido recibido:', data);
+            toast("Nuevo pedido recibido", {
+              description: `Mesa: ${data.table || 'Principal'}` as any,
+              action: {
+                label: "Ver",
+                onClick: () => fetchOrders(),
+              },
+            });
+            fetchOrders();
+          }
+
+          if (eventName === 'order-item:served') {
+            setOrders((prev) =>
+              prev.map((ord) => {
+                if (ord.sessionId !== data.sessionId) return ord;
+                return {
+                  ...ord,
+                  items: ord.items.map((item) =>
+                    item.id === data.itemId ? { ...item, isReady: data.status === 'served' } : item
+                  ),
+                };
+              })
+            );
+          }
+        } catch (e) {
+          console.error('[WS Nativo] Error procesando mensaje:', e);
+        }
+      };
+    }
+
+    initSocket();
     fetchOrders();
-    const interval = setInterval(fetchOrders, 30000);
-    return () => clearInterval(interval);
+
+    return () => {
+      mounted = false;
+      clearTimeout(reconnectTimeout);
+      if (socketRef.current) {
+        socketRef.current.close();
+      }
+    };
   }, [fetchOrders]);
 
   const markItemAsServed = useCallback(async (orderId: string, itemId: number, currentStatus: boolean) => {
@@ -170,7 +254,23 @@ export default function KDSPage() {
   return (
     <div className="w-full pb-6 px-4 pt-4">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-black text-slate-800 tracking-tight uppercase">Kitchen Display System</h1>
+        <div className="flex items-center gap-4">
+          <h1 className="text-2xl font-black text-slate-800 tracking-tight uppercase">Kitchen Display System</h1>
+          <Badge 
+            variant={isConnected ? "secondary" : "destructive"} 
+            className={`font-bold transition-all duration-300 ${isConnected ? "bg-green-100 text-green-700 hover:bg-green-100" : ""}`}
+          >
+            {isConnected ? (
+              <>
+                <Wifi className="w-3 h-3 mr-1.5" /> ONLINE
+              </>
+            ) : (
+              <>
+                <WifiOff className="w-3 h-3 mr-1.5" /> OFFLINE
+              </>
+            )}
+          </Badge>
+        </div>
         <Badge variant="outline" className="font-bold text-slate-500">
           {orders.length} PEDIDOS ACTIVOS
         </Badge>
