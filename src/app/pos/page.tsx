@@ -28,7 +28,7 @@ import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { getPosTablesAction, openPosSessionAction } from "@/app/actions/pos";
-import { closeSessionAction, getSessionItemsAction } from "@/app/actions/orders";
+import { closeSessionAction, getSessionItemsAction, markItemServedAction } from "@/app/actions/orders";
 
 // --- Types ---
 interface Table {
@@ -51,6 +51,7 @@ interface OrderItem {
   quantity: number;
   guestId: number;
   guestName: string;
+  kitchenStatus: "pending" | "served";
 }
 
 export default function PosPage() {
@@ -59,6 +60,8 @@ export default function PosPage() {
   const [selectedTable, setSelectedTable] = useState<Table | null>(null);
   const [tableItems, setTableItems] = useState<OrderItem[]>([]);
   const [loadingItems, setLoadingItems] = useState(false);
+  const [isConfirmingClose, setIsConfirmingClose] = useState(false);
+  const [isClosing, setIsClosing] = useState(false);
 
   const fetchTables = useCallback(async () => {
     try {
@@ -126,13 +129,41 @@ export default function PosPage() {
 
   const handleLiberateTable = async (sessionId: number) => {
     try {
+      setIsClosing(true);
       const res = await closeSessionAction(sessionId);
       if (res.success) {
         toast.success("Mesa liberada correctamente");
+        setIsConfirmingClose(false);
         setSelectedTable(null);
         fetchTables();
       } else {
         toast.error(res.error || "Error al liberar mesa");
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Error de conexión");
+    } finally {
+      setIsClosing(false);
+    }
+  };
+
+  const handleMarkAsServed = async (itemId: number, currentStatus: string) => {
+    if (currentStatus === "served") return;
+
+    // Optimistic update
+    setTableItems(prev => prev.map(item => 
+      item.id === itemId ? { ...item, kitchenStatus: "served" } : item
+    ));
+
+    try {
+      const res = await markItemServedAction(itemId);
+      if (res.success) {
+        toast.success("Producto marcado como listo");
+      } else {
+        toast.error(res.error || "Error al actualizar");
+        // Rollback if failed
+        if (selectedTable?.activeSession) {
+          fetchSessionItems(selectedTable.activeSession.id);
+        }
       }
     } catch (error) {
       toast.error("Error de conexión");
@@ -233,8 +264,27 @@ export default function PosPage() {
                           </h4>
                           <ul className="space-y-1">
                             {diner.items.map(item => (
-                              <li key={item.id} className="flex justify-between text-sm">
-                                <span>{item.quantity}x {item.name}</span>
+                              <li 
+                                key={item.id} 
+                                className={cn(
+                                  "flex justify-between items-center text-sm p-1 rounded transition-colors group",
+                                  item.kitchenStatus === "served" ? "bg-slate-50 opacity-60" : "hover:bg-slate-50 cursor-pointer"
+                                )}
+                                onClick={() => handleMarkAsServed(item.id, item.kitchenStatus)}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <div className={cn(
+                                    "w-4 h-4 rounded border flex items-center justify-center transition-colors",
+                                    item.kitchenStatus === "served" 
+                                      ? "bg-slate-900 border-slate-900" 
+                                      : "border-slate-300 group-hover:border-slate-400"
+                                  )}>
+                                    {item.kitchenStatus === "served" && <CheckCircle2 className="w-3 h-3 text-white" />}
+                                  </div>
+                                  <span className={cn(item.kitchenStatus === "served" && "line-through")}>
+                                    {item.quantity}x {item.name}
+                                  </span>
+                                </div>
                                 <span className="font-medium">€{(item.price * item.quantity).toFixed(2)}</span>
                               </li>
                             ))}
@@ -248,13 +298,9 @@ export default function PosPage() {
                 </ScrollArea>
 
                 <div className="pt-4 flex flex-col gap-3">
-                  <Button variant="outline" className="w-full h-11 border-red-200 text-red-600 hover:bg-red-50">
-                    <PlusCircle className="w-4 h-4 mr-2" />
-                    Añadir Pedido (En Desarrollo)
-                  </Button>
                   <Button 
                     className="w-full h-11 bg-red-600 hover:bg-red-700 text-white font-bold"
-                    onClick={() => handleLiberateTable(selectedTable.activeSession!.id)}
+                    onClick={() => setIsConfirmingClose(true)}
                     disabled={!selectedTable.activeSession}
                   >
                     <LogOut className="w-4 h-4 mr-2" />
@@ -264,21 +310,36 @@ export default function PosPage() {
               </div>
             ) : (
               <div className="text-center py-10 space-y-4">
-                <AlertCircle className="w-12 h-12 text-muted-foreground/20 mx-auto" />
-                <p className="text-muted-foreground">La mesa {selectedTable?.name} está actualmente disponible para nuevos clientes.</p>
-                <div className="flex flex-col gap-3">
-                  <Button 
-                    className="w-full h-11 bg-emerald-600 hover:bg-emerald-700" 
-                    onClick={() => handleOpenNewSession(selectedTable!.id)}
-                    disabled={loading}
-                  >
-                    {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <PlusCircle className="w-4 h-4 mr-2" />}
-                    Abrir Nueva Mesa
-                  </Button>
-                  <Button variant="outline" className="w-full h-11" onClick={() => setSelectedTable(null)}>Cerrar</Button>
-                </div>
+                <CheckCircle2 className="w-12 h-12 text-emerald-500/20 mx-auto" />
+                <p className="text-muted-foreground font-medium">La mesa {selectedTable?.name} está actualmente disponible.</p>
+                <Button variant="outline" className="w-full h-11" onClick={() => setSelectedTable(null)}>Cerrar</Button>
               </div>
             )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirmation Modal for Closing Session */}
+      <Dialog open={isConfirmingClose} onOpenChange={setIsConfirmingClose}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>¿Confirmar cierre de mesa?</DialogTitle>
+            <DialogDescription>
+              Esta acción marcará la mesa {selectedTable?.name} como libre y cerrará la sesión de consumo. Asegúrate de haber procesado el pago.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-3 mt-4">
+            <Button 
+              className="bg-red-600 hover:bg-red-700 text-white font-bold h-11"
+              onClick={() => selectedTable?.activeSession && handleLiberateTable(selectedTable.activeSession.id)}
+              disabled={isClosing}
+            >
+              {isClosing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <LogOut className="w-4 h-4 mr-2" />}
+              Sí, Cobrar y Liberar
+            </Button>
+            <Button variant="outline" className="h-11" onClick={() => setIsConfirmingClose(false)}>
+              Cancelar
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
