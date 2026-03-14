@@ -234,24 +234,24 @@ export default function TablesPage() {
         <Card className="shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
             <CardTitle className="text-sm font-medium">Mesas Ocupadas</CardTitle>
-            <div className="p-2 bg-red-100 dark:bg-red-900/40 rounded-full">
-              <Users className="w-4 h-4 text-red-600 dark:text-red-400" />
+            <div className="p-2 bg-red-100 rounded-full">
+              <Users className="w-4 h-4 text-red-600" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-red-600 dark:text-red-400">{occupiedTables}</div>
+            <div className="text-3xl font-bold text-red-600">{occupiedTables}</div>
           </CardContent>
         </Card>
 
         <Card className="shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
             <CardTitle className="text-sm font-medium">Mesas Libres</CardTitle>
-            <div className="p-2 bg-emerald-100 dark:bg-emerald-900/40 rounded-full">
-              <QrCode className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+            <div className="p-2 bg-emerald-100 rounded-full">
+              <QrCode className="w-4 h-4 text-emerald-600" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">{freeTables}</div>
+            <div className="text-3xl font-bold text-emerald-600">{freeTables}</div>
           </CardContent>
         </Card>
       </div>
@@ -278,15 +278,15 @@ export default function TablesPage() {
               >
                 <div className={cn(
                   "p-4 flex flex-col h-full gap-3",
-                  isFree && "bg-emerald-50/40 dark:bg-emerald-950/20",
-                  isOccupied && "bg-red-50/40 dark:bg-red-950/20"
+                  isFree && "bg-emerald-50/40",
+                  isOccupied && "bg-red-50/40"
                 )}>
                   {/* Header: Etiqueta y Menú Opciones */}
                   <div className="flex justify-between items-start">
                     <span className={cn(
-                      "inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ring-1 ring-inset bg-white dark:bg-black/50",
-                      isFree && "text-emerald-700 ring-emerald-600/30 dark:text-emerald-400 dark:ring-emerald-500/30",
-                      isOccupied && "text-red-700 ring-red-600/20 dark:text-red-400 dark:ring-red-500/30"
+                      "inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ring-1 ring-inset bg-white",
+                      isFree && "text-emerald-700 ring-emerald-600/30",
+                      isOccupied && "text-red-700 ring-red-600/20"
                     )}>
                       <span className={cn(
                         "mr-1.5 h-2 w-2 rounded-full",
@@ -308,7 +308,7 @@ export default function TablesPage() {
                           <span className="whitespace-nowrap">Editar mesa</span>
                         </DropdownMenuItem>
                         <DropdownMenuItem 
-                          className="text-red-600 focus:bg-red-50 focus:text-red-700 dark:focus:bg-red-950" 
+                          className="text-red-600 focus:bg-red-50 focus:text-red-700" 
                           onClick={() => setTableToDelete(table)}
                         >
                           <Trash2 className="mr-2 h-4 w-4" />
@@ -322,16 +322,16 @@ export default function TablesPage() {
                   <div className="flex flex-col items-center justify-center py-2 grow">
                     <span className="text-sm font-semibold text-muted-foreground uppercase opacity-80">Mesa</span>
                     <span className={cn(
-                      "text-4xl font-black tracking-tighter mt-1 mb-2 text-center wrap-break-word max-w-full leading-none",
-                      isFree && "text-emerald-950 dark:text-emerald-50",
-                      isOccupied && "text-red-950 dark:text-red-50"
+                      "text-4xl font-black tracking-tighter mt-1 mb-2 text-center wrap-break-word max-w-full leading-none truncate",
+                      isFree && "text-emerald-950",
+                      isOccupied && "text-red-950"
                     )}>
                       {table.name}
                     </span>
                     
                     <div className="flex items-center justify-center gap-2 h-5 mt-1">
                       {isOccupied && (
-                        <div className="flex items-center text-xs font-semibold text-muted-foreground/80 dark:text-muted-foreground">
+                        <div className="flex items-center text-xs font-semibold text-muted-foreground/80">
                           <span>Sesión activa</span>
                         </div>
                       )}
@@ -347,8 +347,8 @@ export default function TablesPage() {
                       variant="outline" 
                       size="sm" 
                       className={cn(
-                        "h-8 text-xs bg-white/60 dark:bg-black/40 hover:bg-white dark:hover:bg-black shadow-none",
-                        isFree ? "border-emerald-200 dark:border-emerald-800/50" : "border-red-200 dark:border-red-800/50"
+                        "h-8 text-xs bg-white/60 hover:bg-white shadow-none",
+                        isFree ? "border-emerald-200" : "border-red-200"
                       )}
                       onClick={() => setSessionDrawerTable(table)}
                     >
@@ -359,8 +359,8 @@ export default function TablesPage() {
                       variant="outline" 
                       size="sm" 
                       className={cn(
-                        "h-8 text-xs bg-white/60 dark:bg-black/40 hover:bg-white dark:hover:bg-black shadow-none",
-                        isFree ? "border-emerald-200 dark:border-emerald-800/50" : "border-red-200 dark:border-red-800/50"
+                        "h-8 text-xs bg-white/60 hover:bg-white shadow-none",
+                        isFree ? "border-emerald-200" : "border-red-200"
                       )}
                       onClick={() => setQrModalTable(table)}
                     >
@@ -377,7 +377,7 @@ export default function TablesPage() {
 
       {/* MODAL: Crear/Editar Mesa */}
       <Dialog open={isTableModalOpen} onOpenChange={setIsTableModalOpen}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-106.25">
           <DialogHeader>
             <DialogTitle>{editingTable ? "Editar Mesa" : "Crear Nueva Mesa"}</DialogTitle>
             <DialogDescription>
@@ -409,7 +409,7 @@ export default function TablesPage() {
 
       {/* MODAL: Eliminar Mesa */}
       <Dialog open={!!tableToDelete} onOpenChange={(open) => !open && setTableToDelete(null)}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-106.25">
           <DialogHeader>
             <DialogTitle>Eliminar Mesa</DialogTitle>
             <DialogDescription>
@@ -441,7 +441,7 @@ export default function TablesPage() {
             <div 
               id="qr-to-print"
               ref={qrRef} 
-              className="flex flex-col items-center bg-white p-4 shadow-sm border border-neutral-100 w-full max-w-[240px] text-black rounded-lg"
+              className="flex flex-col items-center bg-white p-4 shadow-sm border border-neutral-100 w-full max-w-60 text-black rounded-lg"
             >
               <div className="text-center mb-3">
                 <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest leading-none mb-1">Escanea para ver</p>

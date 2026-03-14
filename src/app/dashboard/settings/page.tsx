@@ -1,28 +1,43 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { UploadCloud, Building, Palette, MapPin, CreditCard, Save, Image as ImageIcon, MessageCircle, Loader2 } from "lucide-react";
 import { getSettingsAction, updateSettingsAction } from "@/app/actions/settings";
 import { toast } from "sonner";
+import GeneralProfile from '../../../components/dashboard/settings/tabs/GeneralProfile';
+import Appearance from "@/components/dashboard/settings/tabs/Appearance";
+import LocationAndSecurity from "@/components/dashboard/settings/tabs/LocationAndSecurity";
+
+export interface Settings {
+  name: string;
+  logoUrl: string;
+  bannerUrl: string;
+  currency: string;
+  defaultTaxRate: number;
+  latitude: number;
+  longitude: number;
+  allowedRadiusMeters: number;
+  subscriptionStart: string;
+  subscriptionEnd: string;
+}
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState({
     name: "",
     logoUrl: "",
     bannerUrl: "",
-    currency: "EUR",
-    defaultTaxRate: 18,
-    latitude: -12.046374,
-    longitude: -77.042793,
-    allowedRadiusMeters: 50,
+    currency: "",
+    defaultTaxRate: 0,
+    latitude: 0,
+    longitude: 0,
+    allowedRadiusMeters: 0,
     subscriptionStart: new Date().toISOString(),
     subscriptionEnd: new Date().toISOString(),
   });
@@ -31,13 +46,11 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   
   // States for image previews and files
-  const [logoFile, setLogoFile] = useState<File | null>(null);
-  const [bannerFile, setBannerFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [bannerPreview, setBannerPreview] = useState<string | null>(null);
-  
-  const logoInputRef = useRef<HTMLInputElement>(null);
-  const bannerInputRef = useRef<HTMLInputElement>(null);
+
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [bannerFile, setBannerFile] = useState<File | null>(null);
 
   useEffect(() => {
     async function fetchData() {
@@ -45,7 +58,6 @@ export default function SettingsPage() {
         setLoading(true);
         const res = await getSettingsAction();
         if (res.success && res.data) {
-          // Normalize numeric values that might come as strings from DB
           const data = res.data;
           setSettings({
             ...data,
@@ -101,9 +113,9 @@ export default function SettingsPage() {
       const formData = new FormData();
       formData.append("name", settings.name);
       formData.append("currency", settings.currency);
-      formData.append("defaultTaxRate", settings.defaultTaxRate.toString());
-      formData.append("latitude", settings.latitude.toString());
-      formData.append("longitude", settings.longitude.toString());
+      formData.append("defaultTaxRate", settings.defaultTaxRate?.toString() || "0");
+      formData.append("latitude", settings.latitude?.toString() || "0");
+      formData.append("longitude", settings.longitude?.toString() || "0");
       formData.append("allowedRadiusMeters", (settings.allowedRadiusMeters || 0).toString());
       
       if (logoFile) {
@@ -156,10 +168,13 @@ export default function SettingsPage() {
   const progressPercentage = Math.min(100, Math.max(0, (daysLeft / 365) * 100));
 
   const handleWhatsAppContact = () => {
-    const phoneNumber = "5193469928"; 
-    const message = `Hola, deseo pagar la suscripción de mi restaurante: ${settings.name}.`;
+    const phoneNumber = "+5193469928"; 
+    const currentUrl = window.location.origin;
+    
+    const message = `Hola, deseo pagar la suscripción desde esta web: ${currentUrl}`;
     const encodedMessage = encodeURIComponent(message);
     const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodedMessage}`;
+    
     window.open(whatsappUrl, '_blank');
   };
 
@@ -216,241 +231,35 @@ export default function SettingsPage() {
         <div className="mt-6">
           {/* TAB 1: PERFIL GENERAL */}
           <TabsContent value="general" className="m-0 focus-visible:outline-none focus-visible:ring-0">
-            <Card className="shadow-sm">
-              <CardHeader>
-                <CardTitle>Perfil General</CardTitle>
-                <CardDescription>
-                  Actualiza la información básica de tu restaurante que verán tus clientes.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="space-y-2">
-                  <Label htmlFor="name">Nombre del Restaurante</Label>
-                  <Input
-                    id="name"
-                    value={settings.name}
-                    onChange={(e) => handleChange("name", e.target.value)}
-                    placeholder="Ej. Mi Restaurante"
-                  />
-                  <p className="text-xs text-muted-foreground">Este nombre aparecerá en la aplicación web del cliente.</p>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <Label htmlFor="currency">Moneda</Label>
-                    <Select value={settings.currency} onValueChange={(val) => handleChange("currency", val)}>
-                      <SelectTrigger id="currency">
-                        <SelectValue placeholder="Selecciona una moneda" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="EUR">Euros (EUR)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-muted-foreground">Moneda utilizada para precios y pagos.</p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="taxRate">Tasa de Impuesto Predeterminada (%)</Label>
-                    <Input
-                      id="taxRate"
-                      type="number"
-                      step="0.01"
-                      value={settings.defaultTaxRate}
-                      onChange={(e) => handleChange("defaultTaxRate", parseFloat(e.target.value) || 0)}
-                    />
-                    <p className="text-xs text-muted-foreground">Porcentaje de impuesto a aplicar por defecto (Ej: 18 para IGV/IVA).</p>
-                  </div>
-                </div>
-              </CardContent>
-              <CardFooter className="bg-muted/30 border-t px-6 py-4">
-                <Button 
-                  className="w-full sm:w-auto" 
-                  onClick={handleSave}
-                  disabled={saving}
-                >
-                  {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                  Guardar Cambios
-                </Button>
-              </CardFooter>
-            </Card>
+            <GeneralProfile 
+              settings={settings}
+              handleChange={handleChange}
+              handleSave={handleSave}
+              saving={saving}
+            />
           </TabsContent>
 
           {/* TAB 2: APARIENCIA */}
           <TabsContent value="appearance" className="m-0 focus-visible:outline-none focus-visible:ring-0">
-            <Card className="shadow-sm">
-              <CardHeader>
-                <CardTitle>Apariencia (Marca Blanca)</CardTitle>
-                <CardDescription>
-                  Personaliza los colores y las imágenes para que la experiencia del cliente refleje tu identidad visual.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-8">
-                <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
-                  <div className="md:col-span-4 flex flex-col items-center sm:items-start gap-4">
-                    <Label>Logo del Local</Label>
-                    <input 
-                      type="file" 
-                      className="hidden" 
-                      accept="image/*" 
-                      ref={logoInputRef}
-                      onChange={handleLogoChange}
-                    />
-                    <div 
-                      onClick={() => logoInputRef.current?.click()}
-                      className="relative group w-32 h-32 rounded-full border-2 border-dashed border-border flex items-center justify-center bg-muted/30 overflow-hidden hover:bg-muted/50 transition-colors cursor-pointer"
-                    >
-                      {(logoPreview || settings.logoUrl) ? (
-                         // eslint-disable-next-line @next/next/no-img-element
-                        <img 
-                          src={logoPreview || settings.logoUrl} 
-                          alt="Logo" 
-                          className="w-full h-full object-cover" 
-                        />
-                      ) : (
-                        <div className="flex flex-col items-center text-muted-foreground">
-                          <ImageIcon className="w-8 h-8 mb-2 opacity-50" />
-                          <span className="text-[10px] font-medium text-center px-2">Subir<br/>Logo</span>
-                        </div>
-                      )}
-                      <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                        <UploadCloud className="w-6 h-6 text-white" />
-                      </div>
-                    </div>
-                    <p className="text-xs text-muted-foreground text-center sm:text-left max-w-[140px]">
-                      Imagen circular, min 256x256px en formato PNG o JPG.
-                    </p>
-                  </div>
-
-                  <div className="md:col-span-8 flex flex-col gap-4">
-                    <Label>Banner de Portada</Label>
-                    <input 
-                      type="file" 
-                      className="hidden" 
-                      accept="image/*" 
-                      ref={bannerInputRef}
-                      onChange={handleBannerChange}
-                    />
-                    <div 
-                      onClick={() => bannerInputRef.current?.click()}
-                      className="relative group w-full h-40 rounded-xl border-2 border-dashed border-border flex flex-col items-center justify-center bg-muted/30 overflow-hidden hover:bg-muted/50 transition-colors cursor-pointer"
-                    >
-                       {(bannerPreview || settings.bannerUrl) ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img 
-                            src={bannerPreview || settings.bannerUrl} 
-                            alt="Banner" 
-                            className="w-full h-full object-cover" 
-                          />
-                       ) : (
-                         <div className="flex flex-col items-center text-muted-foreground">
-                           <ImageIcon className="w-10 h-10 mb-3 opacity-50" />
-                           <span className="text-sm font-medium">Arrastra y suelta un banner aquí</span>
-                           <span className="text-xs opacity-70 mt-1">o haz click para subir un archivo</span>
-                         </div>
-                       )}
-                       <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                         <UploadCloud className="w-8 h-8 text-white" />
-                       </div>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      La imagen que se verá en el login y en el menú del cliente. Tamaño recomendado: 1200x400px.
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-              <CardFooter className="bg-muted/30 border-t px-6 py-4">
-                <Button 
-                  className="w-full sm:w-auto" 
-                  onClick={handleSave}
-                  disabled={saving}
-                >
-                  {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                  Guardar Cambios
-                </Button>
-              </CardFooter>
-            </Card>
+            <Appearance
+              settings={settings}
+              handleLogoChange={handleLogoChange}
+              handleBannerChange={handleBannerChange}
+              handleSave={handleSave}
+              saving={saving}
+              logoPreview={logoPreview}
+              bannerPreview={bannerPreview}
+            />
           </TabsContent>
 
           {/* TAB 3: UBICACIÓN Y SEGURIDAD */}
           <TabsContent value="location" className="m-0 focus-visible:outline-none focus-visible:ring-0">
-            <Card className="shadow-sm">
-              <CardHeader>
-                <CardTitle>Ubicación y Seguridad</CardTitle>
-                <CardDescription>
-                  Configura la ubicación exacta y activa las restricciones de distancia para evitar pedidos falsos.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <Label htmlFor="latitude">Latitud</Label>
-                    <Input
-                      id="latitude"
-                      type="number"
-                      step="any"
-                      value={settings.latitude}
-                      onChange={(e) => handleChange("latitude", parseFloat(e.target.value) || 0)}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="longitude">Longitud</Label>
-                    <Input
-                      id="longitude"
-                      type="number"
-                      step="any"
-                      value={settings.longitude}
-                      onChange={(e) => handleChange("longitude", parseFloat(e.target.value) || 0)}
-                    />
-                  </div>
-                </div>
-
-                <div className="pt-4 border-t border-border/50 space-y-6">
-                  <div className="flex flex-row items-center justify-between rounded-lg border p-4 shadow-sm bg-muted/10">
-                    <div className="space-y-0.5">
-                      <Label className="text-base font-semibold">Geofencing (Restricción por distancia)</Label>
-                      <p className="text-sm text-muted-foreground mr-4">
-                        Solo permite realizar pedidos dentro de un radio específico del local (mediante GPS).
-                      </p>
-                    </div>
-                    <Switch
-                     checked={(settings.allowedRadiusMeters || 0) > 0}
-                     onCheckedChange={(val) => handleChange("allowedRadiusMeters", val ? 50 : 0)}
-                    />
-                  </div>
-
-                  {((settings.allowedRadiusMeters || 0) > 0) && (
-                    <div className="space-y-2 max-w-sm flex-1 animate-in slide-in-from-top-2 fade-in duration-200">
-                      <Label htmlFor="radius">Radio Permitido (metros)</Label>
-                      <div className="relative">
-                        <Input
-                          id="radius"
-                          type="number"
-                          value={settings.allowedRadiusMeters}
-                          onChange={(e) => handleChange("allowedRadiusMeters", parseInt(e.target.value) || 0)}
-                          className="pr-16"
-                        />
-                        <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-muted-foreground text-sm">
-                          metros
-                        </div>
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        Recomendado: 30 a 50 metros. Considera la precisión del GPS de los móviles.
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-              <CardFooter className="bg-muted/30 border-t px-6 py-4">
-                <Button 
-                  className="w-full sm:w-auto" 
-                  onClick={handleSave}
-                  disabled={saving}
-                >
-                  {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                  Guardar Cambios
-                </Button>
-              </CardFooter>
-            </Card>
+            <LocationAndSecurity
+              settings={settings}
+              handleChange={handleChange}
+              handleSave={handleSave}
+              saving={saving}
+            />
           </TabsContent>
 
           {/* TAB 4: PLAN Y SUSCRIPCIÓN */}

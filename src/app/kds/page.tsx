@@ -5,12 +5,13 @@ import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Clock, CheckCircle2, Siren } from "lucide-react";
+import { Clock, CheckCircle2, Siren, Loader2 } from "lucide-react";
 import Masonry from "react-masonry-css";
+import { getKdsOrdersAction, markItemServedAction, markOrderCompleteAction } from "@/app/actions/orders";
 
-// Interfaces para Mock
+// Interfaces
 type OrderItem = {
-  id: string;
+  id: number;
   quantity: number;
   name: string;
   notes?: string;
@@ -18,121 +19,108 @@ type OrderItem = {
 };
 
 type Order = {
-  id: string;
+  id: string; // "session-XX"
+  sessionId: number;
   table: string;
   diner?: string;
   elapsedMinutes: number;
   items: OrderItem[];
 };
 
-// Datos Mockeados
-const MOCK_ORDERS: Order[] = [
-  {
-    id: "ord-1",
-    table: "MESA 7",
-    diner: "Carlos",
-    elapsedMinutes: 8,
-    items: [
-      { id: "i1", quantity: 1, name: "PIZZA PEPPERONI", notes: "¡SIN CEBOLLA!", isReady: false },
-      { id: "i2", quantity: 2, name: "COCA COLA ZERO", isReady: true },
-    ],
-  },
-  {
-    id: "ord-2",
-    table: "MESA 12",
-    diner: "Ana",
-    elapsedMinutes: 15,
-    items: [
-      { id: "i3", quantity: 1, name: "BIFE DE CHORIZO", notes: "JUGOSO, MEDIO PUNTO", isReady: false },
-      { id: "i4", quantity: 1, name: "ENSALADA MIXTA", isReady: false },
-      { id: "i5", quantity: 1, name: "PAPAS FRITAS", isReady: true },
-    ],
-  },
-  {
-    id: "ord-3",
-    table: "BARRA",
-    diner: "Grupo A",
-    elapsedMinutes: 25,
-    items: [
-      { id: "i6", quantity: 3, name: "HAMBURGUESA CLÁS.", isReady: false },
-      { id: "i7", quantity: 1, name: "NACHOS CON QUESO", notes: "EXTRA JALAPEÑO", isReady: false },
-    ],
-  },
-  {
-    id: "ord-4",
-    table: "MESA 4",
-    diner: "Luis",
-    elapsedMinutes: 2,
-    items: [
-      { id: "i8", quantity: 2, name: "PASTA CARBONARA", isReady: false },
-      { id: "i9", quantity: 1, name: "TIRAMISÚ", isReady: false },
-    ],
-  },
-  {
-    id: "ord-41",
-    table: "MESA 41",
-    diner: "Pablo",
-    elapsedMinutes: 2,
-    items: [
-      { id: "i8", quantity: 2, name: "PASTA CARBONARA", isReady: false },
-      { id: "i9", quantity: 1, name: "TIRAMISÚ", isReady: false },
-    ],
-  },
-  {
-    id: "ord-42",
-    table: "MESA 42",
-    diner: "Juan",
-    elapsedMinutes: 2,
-    items: [
-      { id: "i8", quantity: 2, name: "PASTA CARBONARA", isReady: false },
-      { id: "i9", quantity: 1, name: "TIRAMISÚ", isReady: false },
-    ],
-  },
-];
-
 export default function KDSPage() {
-  const [orders, setOrders] = useState<Order[]>(MOCK_ORDERS);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    // console.log("🔔 Beep! Nuevo pedido o actualización.");
+  const getTenantSlug = () => {
+    if (typeof window === "undefined") return "";
+    const host = window.location.hostname;
+    const subDomain = host.split('.')[0] ?? "";
+    return subDomain.replace('-', '_');
+  };
+
+  const fetchOrders = useCallback(async () => {
+    try {
+      const result = await getKdsOrdersAction();
+      if (result.success) {
+        setOrders(result.data);
+      }
+    } catch (error) {
+      console.error("Error fetching KDS orders:", error);
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
 
-  const toggleItemReady = useCallback((orderId: string, itemId: string) => {
+  useEffect(() => {
+    fetchOrders();
+    // Polling cada 30 segundos para nuevos pedidos
+    const interval = setInterval(fetchOrders, 30000);
+    return () => clearInterval(interval);
+  }, [fetchOrders]);
+
+  const markItemAsServed = useCallback(async (orderId: string, itemId: number, currentStatus: boolean) => {
+    if (currentStatus) return;
+
+    // Optimistic update: marcar como listo visualmente mientras responde el backend.
     setOrders((prev) =>
       prev.map((ord) => {
         if (ord.id !== orderId) return ord;
         return {
           ...ord,
           items: ord.items.map((item) =>
-            item.id === itemId ? { ...item, isReady: !item.isReady } : item
+            item.id === itemId ? { ...item, isReady: true } : item
           ),
         };
       })
     );
-  }, []);
 
-  const markOrderReady = useCallback((orderId: string) => {
-    setOrders((prev) => prev.filter((ord) => ord.id !== orderId));
-  }, []);
+    try {
+      await markItemServedAction(itemId);
+      // Refrescar para retirar items ya servidos de la lista pendiente.
+      fetchOrders();
+    } catch (error) {
+      console.error("Error marking item as served:", error);
+      fetchOrders();
+    }
+  }, [fetchOrders]);
+
+  const markOrderReady = useCallback(async (sessionId: number) => {
+    // Optimistic update - Only remove if all items are indeed ready
+    setOrders((prev) => {
+      const order = prev.find(o => o.sessionId === sessionId);
+      const allReady = order?.items.every(i => i.isReady);
+      if (allReady) {
+        return prev.filter((ord) => ord.sessionId !== sessionId);
+      }
+      return prev;
+    });
+
+    try {
+      await markOrderCompleteAction(sessionId);
+    } catch (error) {
+      console.error("Error completing order:", error);
+      fetchOrders();
+    }
+  }, [fetchOrders]);
 
   const getTimeColorSet = (minutes: number) => {
     if (minutes >= 20) {
       return {
-        cardClass: "border-destructive bg-destructive/10",
-        headerClass: "bg-destructive text-destructive-foreground",
+        cardClass: "border-red-500/50 bg-red-50",
+        headerClass: "bg-red-500 text-white",
         icon: <Siren className="w-5 h-5 animate-pulse" />,
       };
     }
     if (minutes >= 10) {
       return {
-        cardClass: "border-orange-500/50 bg-orange-500/5",
-        headerClass: "bg-orange-500 text-primary-foreground",
+        cardClass: "border-orange-500/50 bg-orange-50",
+        headerClass: "bg-orange-500 text-white",
         icon: <Clock className="w-5 h-5" />,
       };
     }
     return {
-      cardClass: "border-border bg-card",
-      headerClass: "bg-muted text-muted-foreground",
+      cardClass: "border-slate-200 bg-white",
+      headerClass: "bg-slate-100 text-slate-600",
       icon: <Clock className="w-5 h-5" />,
     };
   };
@@ -145,19 +133,35 @@ export default function KDSPage() {
     640: 1,
   };
 
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh]">
+        <Loader2 className="w-12 h-12 text-slate-300 animate-spin mb-4" />
+        <p className="text-slate-500 font-medium">Cargando cocina...</p>
+      </div>
+    );
+  }
+
   return (
-    <div className="w-full pb-6">
+    <div className="w-full pb-6 px-4 pt-4">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-black text-slate-800 tracking-tight uppercase">Kitchen Display System</h1>
+        <Badge variant="outline" className="font-bold text-slate-500">
+          {orders.length} PEDIDOS ACTIVOS
+        </Badge>
+      </div>
+
       {orders.length === 0 ? (
         <div className="w-full flex flex-col items-center justify-center text-muted-foreground gap-4 mt-20">
-          <CheckCircle2 className="w-24 h-24 text-muted" />
-          <h2 className="text-2xl md:text-3xl font-bold tracking-tight text-center">¡Todos los pedidos están listos!</h2>
-          <p className="text-lg md:text-xl text-center">La cocina está al día.</p>
+          <CheckCircle2 className="w-24 h-24 text-slate-200" />
+          <h2 className="text-2xl font-bold tracking-tight text-center text-slate-400">Cocina al día</h2>
+          <p className="text-center text-slate-400">No hay pedidos pendientes por ahora.</p>
         </div>
       ) : (
         <Masonry
           breakpointCols={breakpointColumnsObj}
-          className="flex w-auto gap-3 md:gap-4"
-          columnClassName="bg-clip-padding flex flex-col gap-3 md:gap-4"
+          className="flex w-auto gap-4"
+          columnClassName="bg-clip-padding flex flex-col gap-4"
         >
           {orders.map((order) => {
             const colors = getTimeColorSet(order.elapsedMinutes);
@@ -166,61 +170,55 @@ export default function KDSPage() {
             return (
               <Card
                 key={order.id}
-                className={`gap-0 py-0 flex flex-col overflow-hidden shadow-md transition-all duration-300 w-full ${colors.cardClass}`}
+                className={`flex flex-col overflow-hidden shadow-sm transition-all duration-300 w-full border-2 ${colors.cardClass}`}
               >
-                <CardHeader className={`px-3 py-2.5 md:px-4 md:py-3 flex flex-row items-center justify-between space-y-0 gap-2 shrink-0 ${colors.headerClass}`}>
+                <CardHeader className={`px-4 py-3 flex flex-row items-center justify-between space-y-0 gap-2 shrink-0 ${colors.headerClass}`}>
                   <div className="flex flex-col gap-0.5 min-w-0">
-                    <span className="text-xl md:text-2xl font-black uppercase tracking-widest leading-none truncate">
+                    <span className="text-2xl font-black uppercase tracking-tight leading-none truncate">
                       {order.table}
                     </span>
                     {order.diner && (
-                      <span className="text-xs md:text-sm font-bold opacity-90 uppercase tracking-wider truncate">
-                        Pedido de: {order.diner}
+                      <span className="text-[10px] font-bold opacity-80 uppercase tracking-widest truncate">
+                        {order.diner}
                       </span>
                     )}
                   </div>
-                  <div className="flex items-center gap-2 font-mono text-lg md:text-xl font-bold bg-background/20 px-2.5 py-1 rounded-md shadow-inner shrink-0 leading-none">
+                  <div className="flex items-center gap-1.5 font-mono text-lg font-bold bg-black/10 px-2 py-1 rounded shadow-inner shrink-0">
                     {colors.icon}
-                    {order.elapsedMinutes} min
+                    {order.elapsedMinutes}'
                   </div>
                 </CardHeader>
   
-                <CardContent className="p-0 px-0 sm:px-0 bg-card border-none">
-                  <div className="divide-y divide-border">
+                <CardContent className="p-0 bg-white">
+                  <div className="divide-y divide-slate-100">
                     {order.items.map((item) => (
                       <div
                         key={item.id}
-                        onClick={() => toggleItemReady(order.id, item.id)}
-                        className={`flex items-start gap-3 p-3 md:p-4 cursor-pointer transition-colors hover:bg-muted/50 active:bg-muted ${
-                          item.isReady ? "opacity-50" : "opacity-100"
+                        onClick={() => markItemAsServed(order.id, item.id, item.isReady)}
+                        className={`flex items-start gap-4 p-4 cursor-pointer transition-colors hover:bg-slate-50 ${
+                          item.isReady ? "bg-slate-50/50" : ""
                         }`}
                       >
                         <div className="pt-0.5 pointer-events-none shrink-0">
                           <Checkbox
                             checked={item.isReady}
-                            className={`w-6 h-6 md:w-7 md:h-7 rounded-sm transition-all`}
+                            className={`w-6 h-6 rounded border-slate-300 data-[state=checked]:bg-zinc-900 data-[state=checked]:border-zinc-900`}
                           />
                         </div>
-                        <div className="flex-1 flex flex-col gap-1.5 min-w-0">
+                        <div className="flex-1 min-w-0">
                           <div
-                            className={`text-lg font-bold uppercase leading-snug wrap-break-word transition-all ${
-                              item.isReady ? "line-through text-muted-foreground" : "text-foreground"
+                            className={`text-base font-bold uppercase leading-tight transition-all ${
+                              item.isReady ? "line-through text-slate-300" : "text-slate-800"
                             }`}
                           >
-                            <span className="font-black text-primary mr-2">
+                            <span className="font-black text-zinc-900 mr-2">
                               {item.quantity}x
                             </span>
                             {item.name}
                           </div>
-  
                           {item.notes && !item.isReady && (
-                            <Badge variant="secondary" className="bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 hover:bg-yellow-500/30 font-bold uppercase tracking-widest text-[11px] md:text-xs px-2.5 py-1 w-fit mt-1">
+                            <Badge variant="secondary" className="bg-yellow-500/10 text-yellow-700 border-yellow-200/50 hover:bg-yellow-500/20 font-bold uppercase tracking-widest text-[10px] px-2 py-0.5 mt-1.5 w-fit">
                               ⚠️ {item.notes}
-                            </Badge>
-                          )}
-                          {item.notes && item.isReady && (
-                            <Badge variant="outline" className="text-muted-foreground font-bold uppercase tracking-widest text-[11px] md:text-xs px-2.5 py-1 w-fit line-through mt-1">
-                              {item.notes}
                             </Badge>
                           )}
                         </div>
@@ -229,17 +227,17 @@ export default function KDSPage() {
                   </div>
                 </CardContent>
   
-                <CardFooter className="p-3 md:p-4 bg-muted/30 border-t border-border shrink-0">
+                <CardFooter className="p-3 bg-slate-50 border-t border-slate-100">
                   <Button
-                    onClick={() => markOrderReady(order.id)}
+                    onClick={() => markOrderReady(order.sessionId)}
                     size="lg"
                     variant={allItemsReady ? "default" : "secondary"}
-                    className={`w-full h-12 md:h-14 text-sm md:text-base font-bold uppercase tracking-widest transition-all active:scale-95 ${
-                      allItemsReady ? "shadow-lg" : ""
+                    className={`w-full h-12 text-sm font-bold uppercase tracking-widest transition-all active:scale-95 ${
+                      allItemsReady ? "bg-zinc-900 text-white" : "bg-slate-200 text-slate-500"
                     }`}
                   >
-                    <CheckCircle2 className={`w-6 h-6 md:w-7 md:h-7 mr-2 md:mr-3 ${allItemsReady ? "animate-bounce" : ""}`} />
-                    {allItemsReady ? "DESPACHAR" : "MARCAR LISTA"}
+                    <CheckCircle2 className={`w-5 h-5 mr-2 ${allItemsReady ? "animate-bounce text-green-400" : ""}`} />
+                    {allItemsReady ? "DESPACHAR" : "POR LISTO"}
                   </Button>
                 </CardFooter>
               </Card>

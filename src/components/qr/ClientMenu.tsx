@@ -344,7 +344,7 @@ export default function ClientMenu({ tableId, tenantData }: ClientMenuProps) {
     <div className="w-full max-w-480 mx-auto min-h-screen bg-[#FAF8F4] relative pb-28">
       {/* Toast Animado Ultracorto */}
       {toastMessage && (
-        <div className={`fixed top-6 left-1/2 -translate-x-1/2 z-[100] px-4 py-2.5 rounded-full shadow-lg flex items-center gap-2 transform transition-all animate-in fade-in slide-in-from-top-4 border ${
+        <div className={`fixed top-6 left-1/2 -translate-x-1/2 z-100 px-4 py-2.5 rounded-full shadow-lg flex items-center gap-2 transform transition-all animate-in fade-in slide-in-from-top-4 border ${
           toastType === "success" 
           ? "bg-zinc-900 text-white border-zinc-800" 
           : "bg-red-600 text-white border-red-500"
@@ -397,12 +397,12 @@ export default function ClientMenu({ tableId, tenantData }: ClientMenuProps) {
                   required
                 >
                   <InputOTPGroup className="gap-2">
-                    <InputOTPSlot index={0} className="w-10 h-12 text-lg rounded-xl border border-zinc-200 font-bold !rounded-xl" />
-                    <InputOTPSlot index={1} className="w-10 h-12 text-lg rounded-xl border border-zinc-200 font-bold !rounded-xl" />
-                    <InputOTPSlot index={2} className="w-10 h-12 text-lg rounded-xl border border-zinc-200 font-bold !rounded-xl" />
-                    <InputOTPSlot index={3} className="w-10 h-12 text-lg rounded-xl border border-zinc-200 font-bold !rounded-xl" />
-                    <InputOTPSlot index={4} className="w-10 h-12 text-lg rounded-xl border border-zinc-200 font-bold !rounded-xl" />
-                    <InputOTPSlot index={5} className="w-10 h-12 text-lg rounded-xl border border-zinc-200 font-bold !rounded-xl" />
+                    <InputOTPSlot index={0} className="w-10 h-12 text-lg border border-zinc-200 font-bold rounded-xl!" />
+                    <InputOTPSlot index={1} className="w-10 h-12 text-lg border border-zinc-200 font-bold rounded-xl!" />
+                    <InputOTPSlot index={2} className="w-10 h-12 text-lg border border-zinc-200 font-bold rounded-xl!" />
+                    <InputOTPSlot index={3} className="w-10 h-12 text-lg border border-zinc-200 font-bold rounded-xl!" />
+                    <InputOTPSlot index={4} className="w-10 h-12 text-lg border border-zinc-200 font-bold rounded-xl!" />
+                    <InputOTPSlot index={5} className="w-10 h-12 text-lg border border-zinc-200 font-bold rounded-xl!" />
                   </InputOTPGroup>
                 </InputOTP>
               </div>
@@ -528,7 +528,7 @@ export default function ClientMenu({ tableId, tenantData }: ClientMenuProps) {
           {filteredProducts.map((product) => (
             <Card key={product.id} className="py-0 overflow-hidden border-0 shadow-sm rounded-2xl bg-white hover:shadow-md transition-shadow">
               <div className="flex flex-row h-28 md:h-40">
-                <div className="w-1/3 min-w-[100px] shrink-0 bg-stone-100 relative overflow-hidden">
+                <div className="w-1/3 min-w-25 shrink-0 bg-stone-100 relative overflow-hidden">
                   <img
                     src={product.imageUrl || "/placeholder-food.jpg"}
                     alt={product.name}
@@ -586,7 +586,7 @@ export default function ClientMenu({ tableId, tenantData }: ClientMenuProps) {
           </div>
         )}
 
-        <SheetContent side="bottom" className="h-[90vh] md:h-auto md:max-h-[90vh] md:side-right md:w-[400px] flex flex-col rounded-t-3xl md:rounded-l-3xl p-0 bg-[#FAF8F4] overflow-hidden">
+        <SheetContent side="bottom" className="h-[90vh] md:h-auto md:max-h-[90vh] md:side-right md:w-100 flex flex-col rounded-t-3xl md:rounded-l-3xl p-0 bg-[#FAF8F4] overflow-hidden">
             <SheetHeader className="p-6 pb-4 border-b border-stone-200/80 bg-white">
               <SheetTitle className="text-2xl font-extrabold text-left flex items-center gap-2">
                 Tu pedido <span className="text-zinc-400 font-medium text-lg">·</span> <span className="text-zinc-500 font-medium text-lg">{guestName}</span>
@@ -661,8 +661,8 @@ export default function ClientMenu({ tableId, tenantData }: ClientMenuProps) {
                 <div className="w-full flex flex-col items-center gap-4 py-2">
                   <span className="text-zinc-500 text-sm font-medium">No tienes items pendientes de enviar</span>
                   <Link href={`/qr/${tableId}/checkout`} className="w-full">
-                    <Button className="w-full h-14 rounded-2xl text-lg font-bold" variant="default">
-                      🧾 Ir a Pagar / Dividir Cuenta
+                    <Button className="w-full h-12 rounded-md text-lg font-bold" variant="default">
+                      Ver cuenta
                     </Button>
                   </Link>
                 </div>
