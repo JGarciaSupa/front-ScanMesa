@@ -1,12 +1,12 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
-import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Clock, CheckCircle2, Siren, Loader2 } from "lucide-react";
 import Masonry from "react-masonry-css";
+import { toast } from "sonner";
 import { getKdsOrdersAction, markItemServedAction, markOrderCompleteAction } from "@/app/actions/orders";
 
 // Interfaces
@@ -24,19 +24,19 @@ type Order = {
   table: string;
   diner?: string;
   elapsedMinutes: number;
+  createdAt: string;
   items: OrderItem[];
 };
 
 export default function KDSPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [now, setNow] = useState(new Date());
 
-  const getTenantSlug = () => {
-    if (typeof window === "undefined") return "";
-    const host = window.location.hostname;
-    const subDomain = host.split('.')[0] ?? "";
-    return subDomain.replace('-', '_');
-  };
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   const fetchOrders = useCallback(async () => {
     try {
@@ -53,7 +53,6 @@ export default function KDSPage() {
 
   useEffect(() => {
     fetchOrders();
-    // Polling cada 30 segundos para nuevos pedidos
     const interval = setInterval(fetchOrders, 30000);
     return () => clearInterval(interval);
   }, [fetchOrders]);
@@ -75,17 +74,22 @@ export default function KDSPage() {
     );
 
     try {
-      await markItemServedAction(itemId);
+      const res = await markItemServedAction(itemId);
+      if (res.success) {
+        toast.success("Producto marcado como listo");
+      } else {
+        toast.error(res.error || "Error al actualizar producto");
+      }
       // Refrescar para retirar items ya servidos de la lista pendiente.
       fetchOrders();
     } catch (error) {
       console.error("Error marking item as served:", error);
+      toast.error("Error de conexión");
       fetchOrders();
     }
   }, [fetchOrders]);
 
   const markOrderReady = useCallback(async (sessionId: number) => {
-    // Optimistic update - Only remove if all items are indeed ready
     setOrders((prev) => {
       const order = prev.find(o => o.sessionId === sessionId);
       const allReady = order?.items.every(i => i.isReady);
@@ -96,9 +100,15 @@ export default function KDSPage() {
     });
 
     try {
-      await markOrderCompleteAction(sessionId);
+      const res = await markOrderCompleteAction(sessionId);
+      if (res.success) {
+        toast.success("Pedido despachado correctamente");
+      } else {
+        toast.error(res.error || "Error al despachar pedido");
+      }
     } catch (error) {
       console.error("Error completing order:", error);
+      toast.error("Error de conexión");
       fetchOrders();
     }
   }, [fetchOrders]);
@@ -133,6 +143,21 @@ export default function KDSPage() {
     640: 1,
   };
 
+  const formatElapsed = (createdAt: string) => {
+    const start = new Date(createdAt).getTime();
+    const diff = Math.max(0, now.getTime() - start);
+    
+    const hours = Math.floor(diff / 3600000);
+    const minutes = Math.floor((diff % 3600000) / 60000);
+    const seconds = Math.floor((diff % 60000) / 1000);
+    
+    const hStr = hours > 0 ? `${hours}:` : '';
+    const mStr = String(minutes).padStart(2, '0');
+    const sStr = String(seconds).padStart(2, '0');
+    
+    return `${hStr}${mStr}:${sStr}`;
+  };
+
   if (isLoading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh]">
@@ -165,12 +190,11 @@ export default function KDSPage() {
         >
           {orders.map((order) => {
             const colors = getTimeColorSet(order.elapsedMinutes);
-            const allItemsReady = order.items.every((i) => i.isReady);
 
             return (
               <Card
                 key={order.id}
-                className={`flex flex-col overflow-hidden shadow-sm transition-all duration-300 w-full border-2 ${colors.cardClass}`}
+                className={`py-0 flex flex-col gap-0 overflow-hidden shadow-sm transition-all duration-300 w-full border-2 ${colors.cardClass}`}
               >
                 <CardHeader className={`px-4 py-3 flex flex-row items-center justify-between space-y-0 gap-2 shrink-0 ${colors.headerClass}`}>
                   <div className="flex flex-col gap-0.5 min-w-0">
@@ -183,9 +207,9 @@ export default function KDSPage() {
                       </span>
                     )}
                   </div>
-                  <div className="flex items-center gap-1.5 font-mono text-lg font-bold bg-black/10 px-2 py-1 rounded shadow-inner shrink-0">
+                  <div className="flex items-center gap-1.5 font-mono text-base font-bold bg-black/10 px-2 py-1 rounded shadow-inner shrink-0 min-w-[75px] justify-center">
                     {colors.icon}
-                    {order.elapsedMinutes}'
+                    {formatElapsed(order.createdAt)}
                   </div>
                 </CardHeader>
   
@@ -199,7 +223,7 @@ export default function KDSPage() {
                           item.isReady ? "bg-slate-50/50" : ""
                         }`}
                       >
-                        <div className="pt-0.5 pointer-events-none shrink-0">
+                        <div className="shrink-0 pointer-events-none">
                           <Checkbox
                             checked={item.isReady}
                             className={`w-6 h-6 rounded border-slate-300 data-[state=checked]:bg-zinc-900 data-[state=checked]:border-zinc-900`}
@@ -207,7 +231,7 @@ export default function KDSPage() {
                         </div>
                         <div className="flex-1 min-w-0">
                           <div
-                            className={`text-base font-bold uppercase leading-tight transition-all ${
+                            className={`text-base font-bold uppercase leading-6 transition-all ${
                               item.isReady ? "line-through text-slate-300" : "text-slate-800"
                             }`}
                           >
@@ -226,20 +250,6 @@ export default function KDSPage() {
                     ))}
                   </div>
                 </CardContent>
-  
-                <CardFooter className="p-3 bg-slate-50 border-t border-slate-100">
-                  <Button
-                    onClick={() => markOrderReady(order.sessionId)}
-                    size="lg"
-                    variant={allItemsReady ? "default" : "secondary"}
-                    className={`w-full h-12 text-sm font-bold uppercase tracking-widest transition-all active:scale-95 ${
-                      allItemsReady ? "bg-zinc-900 text-white" : "bg-slate-200 text-slate-500"
-                    }`}
-                  >
-                    <CheckCircle2 className={`w-5 h-5 mr-2 ${allItemsReady ? "animate-bounce text-green-400" : ""}`} />
-                    {allItemsReady ? "DESPACHAR" : "POR LISTO"}
-                  </Button>
-                </CardFooter>
               </Card>
             );
           })}
