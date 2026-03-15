@@ -123,6 +123,11 @@ export default function KDSPage() {
               })
             );
           }
+
+          if (eventName === 'order:completed') {
+            console.log('[WS Nativo] Orden completada:', data.sessionId);
+            setOrders((prev) => prev.filter((ord) => ord.sessionId !== data.sessionId));
+          }
         } catch (e) {
           console.error('[WS Nativo] Error procesando mensaje:', e);
         }

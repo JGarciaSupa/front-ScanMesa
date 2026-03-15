@@ -101,6 +101,54 @@ export default function CheckoutPage({ params }: { params: Promise<{ tableId: st
     fetchData();
   }, [tableId]);
 
+  // WebSocket para detectar cierre de mesa en tiempo real
+  useEffect(() => {
+    if (!sessionId) return;
+
+    let mounted = true;
+    let socket: WebSocket | null = null;
+    let reconnectTimeout: any;
+
+    const initSocket = () => {
+      try {
+        const tenantSlug = getTenantSlug();
+        const apiUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000";
+        const wsUrl = new URL(`${apiUrl.replace(/^http/, 'ws')}/ws`);
+        wsUrl.searchParams.set('tenantId', tenantSlug);
+        wsUrl.searchParams.set('isGuest', 'true');
+
+        socket = new WebSocket(wsUrl.toString());
+
+        socket.onmessage = (event) => {
+          try {
+            const { event: eventName, data } = JSON.parse(event.data);
+            if (eventName === 'session:closed' && data.sessionId === sessionId) {
+              console.log('[WS Checkout] La mesa ha sido cerrada');
+              localStorage.removeItem(`table_session_${tableId}`);
+              router.push(`/qr/${tableId}`);
+            }
+          } catch (e) {
+            console.error('[WS Checkout] Error:', e);
+          }
+        };
+
+        socket.onclose = () => {
+          if (mounted) reconnectTimeout = setTimeout(initSocket, 5000);
+        };
+      } catch (err) {
+        console.error('[WS Checkout] Init error:', err);
+      }
+    };
+
+    initSocket();
+
+    return () => {
+      mounted = false;
+      clearTimeout(reconnectTimeout);
+      if (socket) socket.close();
+    };
+  }, [sessionId, tableId, router]);
+
   // Cálculos de totales
   const grandTotal = useMemo(() => {
     return orderItems.reduce((sum, item) => sum + (Number(item.price) * item.quantity), 0);

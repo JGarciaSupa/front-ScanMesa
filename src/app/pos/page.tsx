@@ -33,7 +33,7 @@ import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { getPosTablesAction, openPosSessionAction } from "@/app/actions/pos";
-import { closeSessionAction, getSessionItemsAction, markItemServedAction } from "@/app/actions/orders";
+import { closeSessionAction, getSessionItemsAction, markItemServedAction, markOrderCompleteAction } from "@/app/actions/orders";
 import { getSocketConfigAction } from "@/app/actions/socket-config";
 import { useRef } from "react";
 
@@ -343,6 +343,21 @@ export default function PosPage() {
       const res = await markItemServedAction(itemId);
       if (res.success) {
         toast.success("Producto marcado como listo");
+        
+        // Verificar si después de este cambio, todos los items de la sesión están listos
+        // Usamos el estado actualizado (tableItems)
+        const updatedItems = tableItems.map(item => 
+          item.id === itemId ? { ...item, kitchenStatus: "served" } : item
+        );
+        
+        const allServed = updatedItems.every(item => item.kitchenStatus === "served");
+        
+        if (allServed && selectedTable?.activeSession) {
+          // Si todos están listos, notificamos al KDS que esta orden ya se puede quitar
+          // Esto dispara el evento order:completed en el backend
+          await markOrderCompleteAction(selectedTable.activeSession.id);
+          console.log("[POS] Orden marcada como completa automáticamente");
+        }
       } else {
         toast.error(res.error || "Error al actualizar");
         // Rollback if failed

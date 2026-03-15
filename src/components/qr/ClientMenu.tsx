@@ -142,6 +142,81 @@ export default function ClientMenu({ tableId, tenantData }: ClientMenuProps) {
     }
   }, [tableId]);
 
+  // WebSocket para actualizaciones en tiempo real (Cierre de mesa)
+  useEffect(() => {
+    // Solo conectamos si el cliente tiene una sesión activa
+    if (!guestName || !sessionId) return;
+
+    let mounted = true;
+    let socket: WebSocket | null = null;
+    let reconnectTimeout: any;
+
+    const initSocket = () => {
+      try {
+        const tenantSlug = getTenantSlug();
+        const apiUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000";
+        // Convertimos http/https a ws/wss
+        const wsUrl = new URL(`${apiUrl.replace(/^http/, 'ws')}/ws`);
+        wsUrl.searchParams.set('tenantId', tenantSlug);
+        wsUrl.searchParams.set('isGuest', 'true');
+
+        socket = new WebSocket(wsUrl.toString());
+
+        socket.onopen = () => {
+          console.log('[WS Cliente] Conectado para recibir actualizaciones de mesa');
+        };
+
+        socket.onmessage = (event) => {
+          try {
+            const { event: eventName, data } = JSON.parse(event.data);
+            
+            // Si la sesión actual es cerrada por el mesero
+            if (eventName === 'session:closed' && data.sessionId === sessionId) {
+              console.log('[WS Cliente] La sesión ha sido cerrada por el personal');
+              
+              // Limpiamos todo para forzar al cliente a poner su nombre de nuevo
+              localStorage.removeItem(`table_session_${tableId}`);
+              setGuestName("");
+              setGuestId(null);
+              setSessionId(null);
+              setIsTableOccupied(false);
+              showToast("La mesa ha sido cerrada", "error");
+            }
+
+            // Si se abre una nueva sesión (por si acaso alguien más la abre)
+            if (eventName === 'table:opened' && data.tableId === (internalTableId || parseInt(tableId))) {
+                // Podríamos refrescar el estado de ocupación
+                setIsTableOccupied(true);
+            }
+          } catch (e) {
+            console.error('[WS Cliente] Error procesando mensaje:', e);
+          }
+        };
+
+        socket.onclose = () => {
+          console.log('[WS Cliente] Desconectado');
+          if (mounted) {
+            reconnectTimeout = setTimeout(initSocket, 5000); // Reintentar en 5 seg
+          }
+        };
+
+        socket.onerror = (err) => {
+          console.error('[WS Cliente] Error en WebSocket:', err);
+        };
+      } catch (error) {
+        console.error('[WS Cliente] Fallo al inicializar socket:', error);
+      }
+    };
+
+    initSocket();
+
+    return () => {
+      mounted = false;
+      clearTimeout(reconnectTimeout);
+      if (socket) socket.close();
+    };
+  }, [guestName, sessionId, tableId, internalTableId]);
+
   if (isSessionChecking) {
     return (
       <div className="w-full min-h-screen bg-[#FAF8F4] flex flex-col items-center justify-center p-6 text-center">
