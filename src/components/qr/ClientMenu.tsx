@@ -14,6 +14,7 @@ import { Card } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import ButtonWaiterdCalled from "@/components/qr/ButtonWaiterdCalled";
+import { cn } from "@/lib/utils";
 
 type Product = {
   id: number;
@@ -22,6 +23,9 @@ type Product = {
   price: number;
   description: string;
   imageUrl: string;
+  trackStock: boolean;
+  currentStock: number;
+  isAvailable: boolean;
 };
 
 type CartItem = {
@@ -352,9 +356,17 @@ export default function ClientMenu({ tableId, tenantData }: ClientMenuProps) {
   };
 
   const addToCart = (product: Product) => {
+    const existing = cart.find((item) => item.product.id === product.id);
+    const quantityInCart = existing?.quantity || 0;
+
+    if (product.trackStock && quantityInCart >= product.currentStock) {
+      showToast(`Stock insuficiente de ${product.name}`, "error");
+      return;
+    }
+
     setCart((prev) => {
-      const existing = prev.find((item) => item.product.id === product.id);
-      if (existing) {
+      const exists = prev.find((item) => item.product.id === product.id);
+      if (exists) {
         return prev.map((item) =>
           item.product.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
         );
@@ -365,6 +377,14 @@ export default function ClientMenu({ tableId, tenantData }: ClientMenuProps) {
   };
 
   const updateQuantity = (productId: number, delta: number) => {
+    const item = cart.find(i => i.product.id === productId);
+    if (!item) return;
+
+    if (delta > 0 && item.product.trackStock && item.quantity >= item.product.currentStock) {
+      showToast(`No hay más stock disponible`, "error");
+      return;
+    }
+
     setCart((prev) => {
       return prev
         .map((item) => {
@@ -406,10 +426,12 @@ export default function ClientMenu({ tableId, tenantData }: ClientMenuProps) {
       if (result.success) {
         showToast("¡Pedido enviado a cocina!");
         setCart([]);
+      } else {
+        showToast(result.error || "Error al enviar el pedido", "error");
       }
     } catch (error) {
       console.error("Error confirming order:", error);
-      showToast("Error al enviar el pedido");
+      showToast("Error de conexión al enviar el pedido", "error");
     } finally {
       setIsLoading(false);
     }
@@ -607,41 +629,69 @@ export default function ClientMenu({ tableId, tenantData }: ClientMenuProps) {
 
       <main className="px-4 py-6 max-w-7xl mx-auto">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {filteredProducts.map((product) => (
-            <Card key={product.id} className="py-0 overflow-hidden border-0 shadow-sm rounded-2xl bg-white hover:shadow-md transition-shadow">
-              <div className="flex flex-row h-28 md:h-40">
-                <div className="w-1/3 min-w-25 shrink-0 bg-stone-100 relative overflow-hidden">
-                  <img
-                    src={product.imageUrl || "/placeholder-food.jpg"}
-                    alt={product.name}
-                    className="absolute inset-0 w-full h-full object-cover"
-                    loading="lazy"
-                  />
-                </div>
-                <div className="flex-1 p-3 md:p-4 flex flex-col justify-between min-w-0">
-                  <div className="overflow-hidden">
-                    <h3 className="font-bold text-sm md:text-lg text-zinc-900 leading-tight mb-0.5 truncate">{product.name}</h3>
-                    <p className="text-[11px] md:text-sm text-zinc-500 line-clamp-2 leading-tight">
-                      {product.description}
-                    </p>
+          {filteredProducts.map((product) => {
+            const isOutOfStock = product.trackStock && product.currentStock <= 0;
+            const isDisabled = !product.isAvailable || isOutOfStock;
+
+            return (
+              <Card 
+                key={product.id} 
+                className={cn(
+                  "py-0 overflow-hidden border-0 shadow-sm rounded-2xl bg-white hover:shadow-md transition-shadow relative",
+                  isDisabled && "opacity-60 grayscale-[0.5]"
+                )}
+              >
+                {isDisabled && (
+                  <div className="absolute inset-0 bg-white/20 backdrop-blur-[1px] flex items-center justify-center z-10 pointer-events-none">
+                    <Badge variant="destructive" className="px-3 py-1 text-xs font-bold uppercase tracking-wider shadow-sm border-none bg-red-600 text-white">
+                      Agotado
+                    </Badge>
                   </div>
-                  <div className="flex items-center justify-between mt-1">
-                    <span className="font-bold text-sm md:text-base text-zinc-900">
-                      €{Number(product.price).toFixed(2)}
-                    </span>
-                    <Button
-                      size="icon"
-                      variant="default"
-                      className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-zinc-900 hover:bg-zinc-800 shadow-sm transform active:scale-90 transition-transform"
-                      onClick={() => addToCart(product)}
-                    >
-                      <Plus className="w-4 h-4 md:w-5 md:h-5 text-white" />
-                    </Button>
+                )}
+                <div className="flex flex-row h-28 md:h-40">
+                  <div className="w-1/3 min-w-25 shrink-0 bg-stone-100 relative overflow-hidden">
+                    <img
+                      src={product.imageUrl || "/placeholder-food.jpg"}
+                      alt={product.name}
+                      className="absolute inset-0 w-full h-full object-cover"
+                      loading="lazy"
+                    />
+                  </div>
+                  <div className="flex-1 p-3 md:p-4 flex flex-col justify-between min-w-0">
+                    <div className="overflow-hidden">
+                      <div className="flex justify-between items-start gap-1">
+                        <h3 className="font-bold text-sm md:text-lg text-zinc-900 leading-tight mb-0.5 truncate flex-1">
+                          {product.name}
+                        </h3>
+                        {product.trackStock && product.currentStock > 0 && product.currentStock <= 5 && (
+                          <span className="text-[9px] font-bold text-orange-600 bg-orange-50 px-1.5 py-0.5 rounded whitespace-nowrap">
+                            Últimos {product.currentStock}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] md:text-sm text-zinc-500 line-clamp-2 leading-tight">
+                        {product.description}
+                      </p>
+                    </div>
+                    <div className="flex items-center justify-between mt-1">
+                      <span className="font-bold text-sm md:text-base text-zinc-900">
+                        €{Number(product.price).toFixed(2)}
+                      </span>
+                      <Button
+                        size="icon"
+                        variant="default"
+                        disabled={isDisabled}
+                        className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-zinc-900 hover:bg-zinc-800 shadow-sm transform active:scale-90 transition-transform disabled:bg-zinc-200 disabled:text-zinc-400"
+                        onClick={() => addToCart(product)}
+                      >
+                        <Plus className="w-4 h-4 md:w-5 md:h-5 text-white" />
+                      </Button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </Card>
-          ))}
+              </Card>
+            );
+          })}
         </div>
       </main>
 
