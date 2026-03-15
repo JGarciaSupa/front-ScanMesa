@@ -14,10 +14,13 @@ import { Label } from "@/components/ui/label";
 import { logoutAction } from "@/app/actions/logout";
 import { useAuthStore } from "@/store/useAuthStore";
 
+import { useKdsStore } from "@/store/useKdsStore";
+
 function KDSHeaderContent() {
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
   const logoutStore = useAuthStore((state) => state.logout);
+  const pendingCount = useKdsStore((state) => state.pendingCount);
   const [time, setTime] = useState<string>("");
   const [silentMode, setSilentMode] = useState(false);
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
@@ -75,7 +78,7 @@ function KDSHeaderContent() {
               variant="destructive" 
               className="relative text-destructive-foreground text-base md:text-xl font-black px-2.5 md:px-3 py-0.5 rounded-md leading-none"
             >
-              6
+              {pendingCount}
             </Badge>
           </div>
         </div>

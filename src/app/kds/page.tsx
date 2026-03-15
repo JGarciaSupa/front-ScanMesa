@@ -10,6 +10,8 @@ import { toast } from "sonner";
 import { getKdsOrdersAction, markItemServedAction, markOrderCompleteAction } from "@/app/actions/orders";
 import { getSocketConfigAction } from "@/app/actions/socket-config";
 
+import { useKdsStore } from "@/store/useKdsStore";
+
 // Interfaces
 type OrderItem = {
   id: number;
@@ -35,11 +37,16 @@ export default function KDSPage() {
   const [now, setNow] = useState(new Date());
   const [isConnected, setIsConnected] = useState(false);
   const socketRef = useRef<WebSocket | null>(null);
+  const setPendingCount = useKdsStore((state) => state.setPendingCount);
 
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    setPendingCount(orders.length);
+  }, [orders.length, setPendingCount]);
 
   const fetchOrders = useCallback(async () => {
     try {
