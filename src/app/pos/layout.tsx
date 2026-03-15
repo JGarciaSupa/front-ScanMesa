@@ -12,24 +12,96 @@ import { Label } from "@/components/ui/label";
 
 import { logoutAction } from "@/app/actions/logout";
 import { useAuthStore } from "@/store/useAuthStore";
-
+import { usePosStore, PosAlert } from "@/store/usePosStore";
 import RoleGuard from "@/components/auth/RoleGuard";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { cn } from "@/lib/utils";
 
 export default function PosLayout({ children }: { children: ReactNode }) {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
   const user = useAuthStore((state) => state.user);
   const logoutStore = useAuthStore((state) => state.logout);
+  const { alerts, markAsRead, clearAlerts } = usePosStore();
+  
+  const unreadAlerts = alerts.filter(a => !a.isRead).length;
 
   // Simulamos datos del mozo actual
   const waiterName = user?.name || "Camarero";
   const assignedZone = "Terraza";
-  const unreadAlerts = 3;
 
   const handleLogout = async () => {
     logoutStore();
     await logoutAction();
   };
+
+  const NotificationList = () => (
+    <div className="w-[280px] xs:w-[320px] sm:w-[360px] md:w-[400px] flex flex-col max-h-[80vh] sm:max-h-[600px] overflow-hidden bg-white dark:bg-zinc-950 border-0 shadow-none">
+      <div className="flex items-center justify-between p-4 border-b border-border shrink-0 bg-white dark:bg-zinc-950 z-10">
+        <h3 className="font-bold text-lg">Notificaciones</h3>
+        <div className="flex gap-2">
+          {unreadAlerts > 0 && (
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="text-xs text-primary h-8 px-2"
+              onClick={() => alerts.forEach(a => !a.isRead && markAsRead(a.id))}
+            >
+              Leer todas
+            </Button>
+          )}
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="text-xs text-destructive h-8 px-2"
+            onClick={clearAlerts}
+          >
+            Limpiar
+          </Button>
+        </div>
+      </div>
+      <div className="flex-1 overflow-y-auto custom-scrollbar">
+        {alerts.length === 0 ? (
+          <div className="p-8 text-center text-muted-foreground flex flex-col items-center gap-2">
+            <Bell className="h-10 w-10 opacity-20" />
+            <p>No tienes notificaciones</p>
+          </div>
+        ) : (
+          <div className="divide-y">
+            {alerts.map((alert: PosAlert) => (
+              <div 
+                key={alert.id} 
+                className={cn(
+                  "p-4 hover:bg-muted/50 transition-colors cursor-pointer relative",
+                  !alert.isRead && "bg-primary/5 hover:bg-primary/10"
+                )}
+                onClick={() => markAsRead(alert.id)}
+              >
+                {!alert.isRead && (
+                  <div className="absolute top-4 right-4 h-2 w-2 rounded-full bg-primary" />
+                )}
+                <div className="flex items-start gap-3">
+                  <div className={cn(
+                    "mt-1 h-2 w-2 rounded-full shrink-0",
+                    alert.type === 'info' && "bg-blue-500",
+                    alert.type === 'warning' && "bg-orange-500",
+                    alert.type === 'success' && "bg-green-500"
+                  )} />
+                  <div className="flex flex-col gap-1 min-w-0">
+                    <p className="text-sm font-bold leading-none">{alert.title}</p>
+                    <p className="text-sm text-muted-foreground line-clamp-2">{alert.description}</p>
+                    <p className="text-[10px] text-muted-foreground font-medium mt-1 uppercase tracking-wider">
+                      {new Date(alert.timestamp).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
 
   return (
     <RoleGuard>
@@ -123,27 +195,41 @@ export default function PosLayout({ children }: { children: ReactNode }) {
 
               {/* Notificaciones (Mobile) */}
               <div className="flex md:hidden relative">
-                <Button size="icon" variant="ghost" className="relative h-10 w-10 hover:bg-accent hover:text-accent-foreground rounded-full">
-                  <Bell className="h-5 w-5 text-muted-foreground" />
-                  {unreadAlerts > 0 && (
-                    <Badge variant="destructive" className="absolute top-0 right-0 flex h-4 w-4 items-center justify-center rounded-full p-0 text-[10px] font-bold border-2 border-background">
-                      {unreadAlerts}
-                    </Badge>
-                  )}
-                </Button>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button size="icon" variant="ghost" className="relative h-10 w-10 hover:bg-accent hover:text-accent-foreground rounded-full">
+                      <Bell className="h-5 w-5 text-muted-foreground" />
+                      {unreadAlerts > 0 && (
+                        <Badge variant="destructive" className="absolute top-0 right-0 flex h-4 w-4 items-center justify-center rounded-full p-0 text-[10px] font-bold border-2 border-background">
+                          {unreadAlerts}
+                        </Badge>
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent align="end" className="w-auto p-0 rounded-2xl shadow-2xl border-border overflow-hidden mt-2">
+                    <NotificationList />
+                  </PopoverContent>
+                </Popover>
               </div>
             </div>
 
             {/* Derecha: Notificaciones (Desktop) */}
             <div className="hidden md:flex items-center">
-              <Button size="icon" variant="ghost" className="relative h-10 w-10 rounded-full bg-muted/50 hover:bg-accent border border-border transition-colors">
-                <Bell className="h-5 w-5 text-muted-foreground" />
-                {unreadAlerts > 0 && (
-                  <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-[10px] font-bold text-destructive-foreground border-2 border-background shadow-sm">
-                    {unreadAlerts}
-                  </span>
-                )}
-              </Button>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button size="icon" variant="ghost" className="relative h-10 w-10 rounded-full bg-muted/50 hover:bg-accent border border-border transition-colors">
+                    <Bell className="h-5 w-5 text-muted-foreground" />
+                    {unreadAlerts > 0 && (
+                      <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-[10px] font-bold text-destructive-foreground border-2 border-background shadow-sm">
+                        {unreadAlerts}
+                      </span>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="end" className="w-auto p-0 rounded-2xl shadow-2xl border-border overflow-hidden mt-2">
+                  <NotificationList />
+                </PopoverContent>
+              </Popover>
             </div>
           </div>
         </header>

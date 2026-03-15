@@ -36,6 +36,7 @@ import { getPosTablesAction, openPosSessionAction } from "@/app/actions/pos";
 import { closeSessionAction, getSessionItemsAction, markItemServedAction, markOrderCompleteAction } from "@/app/actions/orders";
 import { getSocketConfigAction } from "@/app/actions/socket-config";
 import { useRef } from "react";
+import { usePosStore } from "@/store/usePosStore";
 
 // --- Types ---
 interface Table {
@@ -75,6 +76,7 @@ export default function PosPage() {
   const [permissionState, setPermissionState] = useState<NotificationPermission>("default");
   const socketRef = useRef<WebSocket | null>(null);
   const selectedSessionIdRef = useRef<number | null>(null);
+  const addAlert = usePosStore((state) => state.addAlert);
 
   useEffect(() => {
     // Check for notification permission on mount
@@ -211,6 +213,11 @@ export default function PosPage() {
 
             if (eventName === 'order:created') {
               sendPushNotification("¡Nuevo Pedido!", `Hay una nueva orden en camino.`);
+              addAlert({
+                title: "¡Nuevo Pedido!",
+                description: "Hay una nueva orden en camino.",
+                type: "info"
+              });
             }
 
             // Si tenemos la mesa abierta en el modal y hay un nuevo pedido, refrescar items
@@ -233,6 +240,11 @@ export default function PosPage() {
               description
             });
             sendPushNotification("¡Plato listo!", description);
+            addAlert({
+              title: "¡Plato listo!",
+              description,
+              type: "success"
+            });
           }
 
           if (eventName === 'waiter:called') {
@@ -242,6 +254,11 @@ export default function PosPage() {
               duration: 10000,
             });
             sendPushNotification("¡Llamada de Mozo!", description);
+            addAlert({
+              title: "¡Llamada de Mozo!",
+              description,
+              type: "warning"
+            });
           }
 
           if (eventName === 'checkout:requested') {
@@ -251,6 +268,11 @@ export default function PosPage() {
               duration: 10000,
             });
             sendPushNotification("¡Solicitud de Cuenta!", description);
+            addAlert({
+              title: "¡Solicitud de Cuenta!",
+              description,
+              type: "success"
+            });
             fetchTables();
           }
         } catch (e) {
@@ -417,10 +439,6 @@ export default function PosPage() {
               onCheckedChange={handleToggleNotifications}
             />
           </div>
-          <Button onClick={fetchTables} variant="outline" disabled={loading}>
-            <RefreshCw className={cn("w-4 h-4 mr-2", loading && "animate-spin")} />
-            Actualizar
-          </Button>
         </div>
       </div>
 
