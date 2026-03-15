@@ -11,7 +11,9 @@ import {
   AlertCircle,
   Loader2,
   RefreshCw,
-  MoreVertical
+  MoreVertical,
+  Wifi,
+  WifiOff
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +31,8 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { getPosTablesAction, openPosSessionAction } from "@/app/actions/pos";
 import { closeSessionAction, getSessionItemsAction, markItemServedAction } from "@/app/actions/orders";
+import { getSocketConfigAction } from "@/app/actions/socket-config";
+import { useRef } from "react";
 
 // --- Types ---
 interface Table {
@@ -62,6 +66,13 @@ export default function PosPage() {
   const [loadingItems, setLoadingItems] = useState(false);
   const [isConfirmingClose, setIsConfirmingClose] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
+  const [isConnected, setIsConnected] = useState(false);
+  const socketRef = useRef<WebSocket | null>(null);
+  const selectedSessionIdRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    selectedSessionIdRef.current = selectedTable?.activeSession?.id || null;
+  }, [selectedTable?.activeSession?.id]);
 
   const fetchTables = useCallback(async () => {
     try {
@@ -81,9 +92,98 @@ export default function PosPage() {
   }, []);
 
   useEffect(() => {
+    let mounted = true;
+    let reconnectTimeout: any;
+
+    async function initSocket() {
+      const config = await getSocketConfigAction();
+      if (!mounted) return;
+
+      if (socketRef.current) {
+        socketRef.current.close();
+      }
+
+      const wsUrl = new URL(`${config.url.replace('http', 'ws')}/ws`);
+      wsUrl.searchParams.set('token', config.token || '');
+      wsUrl.searchParams.set('tenantId', config.slug || '');
+
+      const socket = new WebSocket(wsUrl.toString());
+      socketRef.current = socket;
+
+      socket.onopen = () => {
+        console.log('[WS POS] Conectado');
+        setIsConnected(true);
+      };
+
+      socket.onclose = () => {
+        console.log('[WS POS] Desconectado');
+        setIsConnected(false);
+        if (mounted) {
+          reconnectTimeout = setTimeout(initSocket, 3000);
+        }
+      };
+
+      socket.onmessage = (event) => {
+        try {
+          const { event: eventName, data } = JSON.parse(event.data);
+          console.log(`[WS POS] Evento: ${eventName}`, data);
+
+          if (eventName === 'table:opened' || eventName === 'session:closed' || eventName === 'order:created') {
+            fetchTables();
+            
+            // Determinar sessionId (data puede ser un item o un array de items)
+            const sessionId = data.sessionId || (Array.isArray(data) ? data[0]?.sessionId : null);
+
+            // Si tenemos la mesa abierta en el modal y hay un nuevo pedido, refrescar items
+            if (eventName === 'order:created' && sessionId && selectedSessionIdRef.current === sessionId) {
+              fetchSessionItems(sessionId);
+            }
+          }
+
+          if (eventName === 'order-item:served') {
+            // Actualizar estado del item en la vista si coincide con la sesión actual
+            setTableItems((prev) =>
+              prev.map((item) =>
+                item.id === data.itemId ? { ...item, kitchenStatus: data.status } : item
+              )
+            );
+            
+            // Si es la mesa que estamos viendo, notificar
+            toast.info(`¡Plato listo para servir!`, {
+              description: `Un item ha sido marcado como servido en cocina.`
+            });
+          }
+
+          if (eventName === 'waiter:called') {
+            toast.warning(`¡Llamada de mozo!`, {
+              description: `Mesa ${data.tableId}: ${data.reason}`,
+              duration: 10000,
+            });
+          }
+
+          if (eventName === 'checkout:requested') {
+            toast.success(`¡Solicitud de cuenta!`, {
+              description: `Mesa ${data.tableId} solicita pagar con ${data.paymentMethod}.`,
+              duration: 10000,
+            });
+            fetchTables();
+          }
+        } catch (e) {
+          console.error('[WS POS] Error procesando mensaje:', e);
+        }
+      };
+    }
+
+    initSocket();
     fetchTables();
-    const interval = setInterval(fetchTables, 60000);
-    return () => clearInterval(interval);
+
+    return () => {
+      mounted = false;
+      clearTimeout(reconnectTimeout);
+      if (socketRef.current) {
+        socketRef.current.close();
+      }
+    };
   }, [fetchTables]);
 
   const fetchSessionItems = async (sessionId: number) => {
@@ -187,9 +287,21 @@ export default function PosPage() {
   return (
     <div className="p-4 md:p-8 max-w-7xl mx-auto min-h-screen">
       <div className="flex justify-between items-center mb-8">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">POS - Mapa de Mesas</h1>
-          <p className="text-muted-foreground">Monitoreo y gestión de sesiones activas.</p>
+        <div className="flex items-center gap-4">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">POS - Mapa de Mesas</h1>
+            <p className="text-muted-foreground">Monitoreo y gestión de sesiones activas.</p>
+          </div>
+          <Badge 
+            variant={isConnected ? "secondary" : "destructive"} 
+            className={`font-bold transition-all duration-300 ${isConnected ? "bg-green-100 text-green-700 hover:bg-green-100" : ""}`}
+          >
+            {isConnected ? (
+              <><Wifi className="w-3 h-3 mr-1.5" /> ONLINE</>
+            ) : (
+              <><WifiOff className="w-3 h-3 mr-1.5" /> OFFLINE</>
+            )}
+          </Badge>
         </div>
         <Button onClick={fetchTables} variant="outline" disabled={loading}>
           <RefreshCw className={cn("w-4 h-4 mr-2", loading && "animate-spin")} />
