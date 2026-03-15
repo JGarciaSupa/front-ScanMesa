@@ -1,0 +1,23 @@
+{
+  "name": "Sistema de Autogestión para Restaurantes",
+  "short_name": "RestoApp",
+  "description": "Sistema de gestión para restaurantes, POS y KDS",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#f97316",
+  "icons": [
+    {
+      "src": "/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
