@@ -13,8 +13,11 @@ import {
   RefreshCw,
   MoreVertical,
   Wifi,
-  WifiOff
+  WifiOff,
+  Bell
 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -67,12 +70,84 @@ export default function PosPage() {
   const [isConfirmingClose, setIsConfirmingClose] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const [showNotificationPrompt, setShowNotificationPrompt] = useState(false);
+  const [permissionState, setPermissionState] = useState<NotificationPermission>("default");
   const socketRef = useRef<WebSocket | null>(null);
   const selectedSessionIdRef = useRef<number | null>(null);
 
   useEffect(() => {
+    // Check for notification permission on mount
+    if (typeof window !== "undefined" && "Notification" in window) {
+      const currentPermission = Notification.permission;
+      setPermissionState(currentPermission);
+      
+      const storedPref = localStorage.getItem("pos-notifications-enabled");
+      
+      // Only show prompt if permission is default and we haven't been told to stay quiet
+      if (currentPermission === "default" && storedPref !== "false") {
+        setShowNotificationPrompt(true);
+      } else if (currentPermission === "granted") {
+        setNotificationsEnabled(storedPref !== "false");
+      }
+    }
     selectedSessionIdRef.current = selectedTable?.activeSession?.id || null;
   }, [selectedTable?.activeSession?.id]);
+
+  const requestNotificationPermission = async () => {
+    if (!("Notification" in window)) {
+      toast.error("Tu navegador no soporta notificaciones");
+      return;
+    }
+
+    if (Notification.permission === "denied") {
+      toast.error("Las notificaciones están bloqueadas en tu navegador. Debes habilitarlas en la configuración del sitio (icono del candado).", {
+        duration: 8000
+      });
+      setPermissionState("denied");
+      setNotificationsEnabled(false);
+      return;
+    }
+
+    const permission = await Notification.requestPermission();
+    setPermissionState(permission);
+    
+    if (permission === "granted") {
+      setNotificationsEnabled(true);
+      localStorage.setItem("pos-notifications-enabled", "true");
+      toast.success("¡Notificaciones activadas!");
+      new Notification("Notificaciones activadas", {
+        body: "Recibirás alertas cuando los pedidos estén listos o llamen al mozo.",
+      });
+    } else {
+      setNotificationsEnabled(false);
+      if (permission === "denied") {
+        localStorage.setItem("pos-notifications-enabled", "false");
+        toast.error("Permiso denegado. Para activarlas, haz clic en el icono del candado en la barra de direcciones.");
+      }
+    }
+    setShowNotificationPrompt(false);
+  };
+
+  const sendPushNotification = (title: string, body: string) => {
+    if (notificationsEnabled && Notification.permission === "granted") {
+      try {
+        new Notification(title, { body });
+      } catch (e) {
+        console.error("Error sending notification:", e);
+      }
+    }
+  };
+
+  const handleToggleNotifications = async (checked: boolean) => {
+    localStorage.setItem("pos-notifications-enabled", checked.toString());
+    if (checked) {
+      await requestNotificationPermission();
+    } else {
+      setNotificationsEnabled(false);
+      toast.info("Notificaciones desactivadas");
+    }
+  };
 
   const fetchTables = useCallback(async () => {
     try {
@@ -134,6 +209,10 @@ export default function PosPage() {
             // Determinar sessionId (data puede ser un item o un array de items)
             const sessionId = data.sessionId || (Array.isArray(data) ? data[0]?.sessionId : null);
 
+            if (eventName === 'order:created') {
+              sendPushNotification("¡Nuevo Pedido!", `Hay una nueva orden en camino.`);
+            }
+
             // Si tenemos la mesa abierta en el modal y hay un nuevo pedido, refrescar items
             if (eventName === 'order:created' && sessionId && selectedSessionIdRef.current === sessionId) {
               fetchSessionItems(sessionId);
@@ -149,23 +228,29 @@ export default function PosPage() {
             );
             
             // Si es la mesa que estamos viendo, notificar
+            const description = `Un item ha sido marcado como servido en cocina.`;
             toast.info(`¡Plato listo para servir!`, {
-              description: `Un item ha sido marcado como servido en cocina.`
+              description
             });
+            sendPushNotification("¡Plato listo!", description);
           }
 
           if (eventName === 'waiter:called') {
+            const description = `Mesa ${data.tableId}: ${data.reason}`;
             toast.warning(`¡Llamada de mozo!`, {
-              description: `Mesa ${data.tableId}: ${data.reason}`,
+              description,
               duration: 10000,
             });
+            sendPushNotification("¡Llamada de Mozo!", description);
           }
 
           if (eventName === 'checkout:requested') {
+            const description = `Mesa ${data.tableId} solicita pagar con ${data.paymentMethod}.`;
             toast.success(`¡Solicitud de cuenta!`, {
-              description: `Mesa ${data.tableId} solicita pagar con ${data.paymentMethod}.`,
+              description,
               duration: 10000,
             });
+            sendPushNotification("¡Solicitud de Cuenta!", description);
             fetchTables();
           }
         } catch (e) {
@@ -303,10 +388,37 @@ export default function PosPage() {
             )}
           </Badge>
         </div>
-        <Button onClick={fetchTables} variant="outline" disabled={loading}>
-          <RefreshCw className={cn("w-4 h-4 mr-2", loading && "animate-spin")} />
-          Actualizar
-        </Button>
+        <div className="flex items-center gap-6">
+          <div className="hidden md:flex items-center gap-3 bg-slate-100 px-4 py-2 rounded-full border border-slate-200">
+            <div className="flex items-center gap-2">
+              <Bell className={cn("w-4 h-4", notificationsEnabled ? "text-primary fill-primary/10" : "text-muted-foreground")} />
+              <Label htmlFor="notifications" className="text-sm font-medium cursor-pointer">
+                Notificaciones
+              </Label>
+            </div>
+            <Switch 
+              id="notifications" 
+              checked={notificationsEnabled} 
+              onCheckedChange={handleToggleNotifications}
+            />
+          </div>
+          <Button onClick={fetchTables} variant="outline" disabled={loading}>
+            <RefreshCw className={cn("w-4 h-4 mr-2", loading && "animate-spin")} />
+            Actualizar
+          </Button>
+        </div>
+      </div>
+
+      {/* Notification Toggle for mobile (floating or integrated if needed) - for now just keep it in header */}
+      <div className="md:hidden flex items-center justify-between bg-white p-3 rounded-lg border border-slate-200 mb-6">
+        <div className="flex items-center gap-2">
+          <Bell className={cn("w-4 h-4", notificationsEnabled ? "text-primary" : "text-muted-foreground")} />
+          <span className="text-sm font-medium">Notificaciones Push</span>
+        </div>
+        <Switch 
+          checked={notificationsEnabled} 
+          onCheckedChange={handleToggleNotifications}
+        />
       </div>
 
       {loading && tables.length === 0 ? (
@@ -452,6 +564,54 @@ export default function PosPage() {
             <Button variant="outline" className="h-11" onClick={() => setIsConfirmingClose(false)}>
               Cancelar
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Initial Notification Prompt */}
+      <Dialog open={showNotificationPrompt} onOpenChange={setShowNotificationPrompt}>
+        <DialogContent className="sm:max-w-[400px] text-center p-8">
+          <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-6">
+            <Bell className="w-8 h-8 text-primary animate-bounce" />
+          </div>
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-bold">
+              {permissionState === "denied" ? "Permiso Denegado" : "Activar Notificaciones"}
+            </DialogTitle>
+            <DialogDescription className="text-base pt-2">
+              {permissionState === "denied" 
+                ? "Has bloqueado las notificaciones en este navegador. Para recibirlas, debes hacer clic en el candado junto a la URL y permitir las notificaciones."
+                : "¿Deseas recibir notificaciones en tiempo real cuando un plato esté listo o un cliente necesite atención?"}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-3 mt-8">
+            {permissionState === "denied" ? (
+              <Button 
+                className="w-full h-12 font-bold"
+                onClick={() => setShowNotificationPrompt(false)}
+              >
+                Entendido
+              </Button>
+            ) : (
+              <>
+                <Button 
+                  className="w-full h-12 font-bold text-lg"
+                  onClick={requestNotificationPermission}
+                >
+                  Sí, activar notificaciones
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  className="w-full h-12 text-muted-foreground"
+                  onClick={() => {
+                    setShowNotificationPrompt(false);
+                    localStorage.setItem("pos-notifications-enabled", "false");
+                  }}
+                >
+                  Ahora no
+                </Button>
+              </>
+            )}
           </div>
         </DialogContent>
       </Dialog>

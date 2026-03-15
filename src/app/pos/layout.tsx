@@ -134,20 +134,6 @@ export default function PosLayout({ children }: { children: ReactNode }) {
               </div>
             </div>
 
-            {/* Centro: Filtros de estado (Pills) */}
-            <div className="w-full md:w-auto overflow-x-auto pb-1 md:pb-0 scrollbar-hide">
-              <Tabs defaultValue="all" className="w-full justify-start md:justify-center">
-                <TabsList className="bg-muted/80 p-1 border border-border">
-                  <TabsTrigger value="all" className="text-[13px] font-medium px-4 h-8 rounded-md data-[state=active]:bg-background data-[state=active]:shadow-sm">Todas</TabsTrigger>
-                  <TabsTrigger value="occupied" className="text-[13px] font-medium px-4 h-8 rounded-md data-[state=active]:bg-background data-[state=active]:shadow-sm">Ocupadas</TabsTrigger>
-                  <TabsTrigger value="attention" className="text-[13px] font-medium px-4 h-8 rounded-md data-[state=active]:bg-background data-[state=active]:shadow-sm relative">
-                    Pidiendo Cuenta
-                    <span className="ml-1.5 flex h-1.5 w-1.5 rounded-full bg-destructive"></span>
-                  </TabsTrigger>
-                </TabsList>
-              </Tabs>
-            </div>
-
             {/* Derecha: Notificaciones (Desktop) */}
             <div className="hidden md:flex items-center">
               <Button size="icon" variant="ghost" className="relative h-10 w-10 rounded-full bg-muted/50 hover:bg-accent border border-border transition-colors">
