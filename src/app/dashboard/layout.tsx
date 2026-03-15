@@ -45,10 +45,22 @@ const navigation = [
 
 import { logoutAction } from "@/app/actions/logout";
 import { useAuthStore } from "@/store/useAuthStore";
+import { useConfigStore } from "@/store/useConfigStore";
+import { useEffect } from "react";
 
 function SidebarContent() {
   const pathname = usePathname();
   const logoutStore = useAuthStore((state) => state.logout);
+  const { tenantName, logoUrl } = useConfigStore();
+
+  const getInitials = (name: string) => {
+    return name
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2);
+  };
 
   const handleLogout = async () => {
     logoutStore();
@@ -59,11 +71,15 @@ function SidebarContent() {
     <div className="flex h-full flex-col bg-slate-900 border-r border-slate-800 text-slate-300">
       {/* Header Sidebar */}
       <div className="flex h-16 items-center border-b border-slate-800 px-4 gap-3 bg-slate-950/50">
-        <Avatar className="h-9 w-9 border border-slate-700">
-          <AvatarImage src="https://api.dicebear.com/7.x/shapes/svg?seed=Osteria&backgroundColor=0f172a" alt="Osteria Venezia" />
-          <AvatarFallback className="bg-slate-800 text-slate-100">OV</AvatarFallback>
+        <Avatar className="h-9 w-9 border border-slate-700 bg-slate-800">
+          {logoUrl ? (
+            <AvatarImage src={logoUrl} alt={tenantName} />
+          ) : null}
+          <AvatarFallback className="bg-primary/20 text-primary font-bold text-xs">
+            {getInitials(tenantName)}
+          </AvatarFallback>
         </Avatar>
-        <span className="font-bold text-lg text-white tracking-tight">Osteria Venezia</span>
+        <span className="font-bold text-lg text-white tracking-tight truncate">{tenantName}</span>
       </div>
 
       {/* Nav */}
@@ -120,6 +136,22 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const user = useAuthStore((state) => state.user);
+  const { tenantName, logoUrl, fetchConfig } = useConfigStore();
+
+  useEffect(() => {
+    fetchConfig();
+  }, []);
+
+  const getInitials = (name: string) => {
+    return name
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2);
+  };
+
   return (
     <RoleGuard>
       <div className="flex h-screen w-full bg-slate-50 overflow-hidden font-sans">
@@ -182,8 +214,10 @@ export default function DashboardLayout({
 
               {/* Profile */}
               <Avatar className="h-9 w-9 cursor-pointer ring-2 ring-transparent hover:ring-slate-200 transition-all">
-                <AvatarImage src="https://api.dicebear.com/7.x/avataaars/svg?seed=AdminBoss" alt="Admin Avatar" />
-                <AvatarFallback className="bg-slate-900 text-white text-xs font-medium">AD</AvatarFallback>
+                <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.name || 'Admin'}`} alt="Admin Avatar" />
+                <AvatarFallback className="bg-slate-900 text-white text-xs font-medium">
+                  {user ? getInitials(user.name) : "AD"}
+                </AvatarFallback>
               </Avatar>
             </div>
           </header>

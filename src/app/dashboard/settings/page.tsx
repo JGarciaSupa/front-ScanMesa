@@ -28,7 +28,10 @@ export interface Settings {
   subscriptionEnd: string;
 }
 
+import { useConfigStore } from "@/store/useConfigStore";
+
 export default function SettingsPage() {
+  const updateConfig = useConfigStore((state) => state.updateLocally);
   const [settings, setSettings] = useState({
     name: "",
     logoUrl: "",
@@ -139,6 +142,14 @@ export default function SettingsPage() {
             longitude: parseFloat(data.longitude) || 0,
             allowedRadiusMeters: parseInt(data.allowedRadiusMeters) || 0,
           });
+          
+          // Actualizar store global
+          updateConfig({
+            name: data.name,
+            logoUrl: data.logoUrl,
+            bannerUrl: data.bannerUrl
+          });
+
           // Clear files/previews
           setLogoFile(null);
           setBannerFile(null);

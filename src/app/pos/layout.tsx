@@ -1,10 +1,9 @@
 "use client";
 
 import { ReactNode, useState } from "react";
-import { Bell, User, MapPin, ChevronDown, Settings, LogOut } from "lucide-react";
+import { Bell, User, MapPin, ChevronDown, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -13,9 +12,11 @@ import { Label } from "@/components/ui/label";
 import { logoutAction } from "@/app/actions/logout";
 import { useAuthStore } from "@/store/useAuthStore";
 import { usePosStore, PosAlert } from "@/store/usePosStore";
+import { useConfigStore } from "@/store/useConfigStore";
 import RoleGuard from "@/components/auth/RoleGuard";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
+import { useEffect } from "react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 export default function PosLayout({ children }: { children: ReactNode }) {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -23,8 +24,22 @@ export default function PosLayout({ children }: { children: ReactNode }) {
   const user = useAuthStore((state) => state.user);
   const logoutStore = useAuthStore((state) => state.logout);
   const { alerts, markAsRead, clearAlerts } = usePosStore();
+  const { tenantName, logoUrl, fetchConfig } = useConfigStore();
   
   const unreadAlerts = alerts.filter(a => !a.isRead).length;
+
+  useEffect(() => {
+    fetchConfig();
+  }, []);
+
+  const getInitials = (name: string) => {
+    return name
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2);
+  };
 
   // Simulamos datos del mozo actual
   const waiterName = user?.name || "Camarero";
@@ -111,8 +126,25 @@ export default function PosLayout({ children }: { children: ReactNode }) {
           <div className="flex flex-col md:flex-row h-auto md:h-16 items-center px-4 py-3 md:py-0 gap-4 md:gap-0 justify-between max-w-7xl mx-auto w-full">
             
             {/* Izquierda: Mozo y Zona */}
-            <div className="flex items-center gap-3 w-full md:w-auto justify-between md:justify-start">
-              
+            <div className="flex items-center gap-6 w-full md:w-auto justify-between md:justify-start">
+              <div className="flex items-center gap-3">
+                <Avatar className="h-10 w-10 border border-slate-200">
+                  {logoUrl ? (
+                    <AvatarImage src={logoUrl} alt={tenantName} />
+                  ) : (
+                    <AvatarFallback className="bg-primary/10 text-primary font-bold">
+                      {getInitials(tenantName)}
+                    </AvatarFallback>
+                  )}
+                </Avatar>
+                <div className="flex flex-col">
+                  <span className="text-sm font-black text-foreground uppercase tracking-wider">{tenantName}</span>
+                  <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">SALA / POS</span>
+                </div>
+              </div>
+
+              <div className="h-8 w-px bg-border hidden md:block" />
+
               <Popover open={isProfileOpen} onOpenChange={setIsProfileOpen}>
                 <PopoverTrigger asChild>
                   <button className="flex items-center gap-2.5 hover:bg-accent hover:text-accent-foreground p-1.5 pr-3 rounded-full transition-colors text-left focus:outline-none focus:ring-2 focus:ring-ring">

@@ -15,16 +15,32 @@ import { logoutAction } from "@/app/actions/logout";
 import { useAuthStore } from "@/store/useAuthStore";
 
 import { useKdsStore } from "@/store/useKdsStore";
+import { useConfigStore } from "@/store/useConfigStore";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 function KDSHeaderContent() {
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
   const logoutStore = useAuthStore((state) => state.logout);
   const pendingCount = useKdsStore((state) => state.pendingCount);
+  const { tenantName, logoUrl, fetchConfig } = useConfigStore();
   const [time, setTime] = useState<string>("");
   const [silentMode, setSilentMode] = useState(false);
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
   const [showProfileDialog, setShowProfileDialog] = useState(false);
+
+  useEffect(() => {
+    fetchConfig();
+  }, []);
+
+  const getInitials = (name: string) => {
+    return name
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2);
+  };
 
   useEffect(() => {
     const updateTime = () => {
@@ -45,14 +61,24 @@ function KDSHeaderContent() {
     <header className="bg-card border-b border-border flex flex-col md:flex-row items-center justify-between px-4 lg:px-6 py-4 shrink-0 shadow-lg z-20 w-full relative gap-4">
       {/* Izquierda: Menú Mobile, Nombre local y Reloj */}
       <div className="flex items-center justify-between w-full md:w-auto gap-4 lg:gap-8">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-4">
+          <Avatar className="h-10 w-10 border border-border bg-background shadow-sm">
+            {logoUrl ? (
+              <AvatarImage src={logoUrl} alt={tenantName} />
+            ) : (
+              <AvatarFallback className="bg-primary/10 text-primary font-bold">
+                {getInitials(tenantName)}
+              </AvatarFallback>
+            )}
+          </Avatar>
+          
+          <div className="hidden sm:block h-10 w-px bg-border" />
 
           <div>
-            <h1 className="text-2xl md:text-3xl font-black tracking-tight text-foreground uppercase flex items-center gap-2">
-              <span>LA COCINA</span> 
-              <Flame className="w-6 h-6 text-orange-600 fill-orange-600 hidden sm:block" />
+            <h1 className="text-xl md:text-2xl font-black tracking-tighter text-foreground uppercase flex items-center gap-2 leading-none">
+              <span>{tenantName}</span> 
             </h1>
-            <p className="text-muted-foreground font-medium tracking-widest text-xs uppercase hidden sm:block">Sistema KDS</p>
+            <p className="text-muted-foreground font-black tracking-[0.2em] text-[10px] uppercase mt-1 leading-none">KITCHEN DISPLAY SYSTEM</p>
           </div>
         </div>
         <div className="flex items-center gap-2 md:gap-4 bg-muted/30 px-3 py-2 md:px-5 md:py-2.5 rounded-xl border border-border shadow-inner shrink-0 leading-none">
