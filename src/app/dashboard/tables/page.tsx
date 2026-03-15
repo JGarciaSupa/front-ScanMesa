@@ -26,7 +26,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { QrCode, Eye, Plus, Download, Printer, Users, MoreVertical, Pencil, Trash2, Loader2, Copy, Check } from "lucide-react";
+import { QrCode, Eye, Plus, Download, Users, MoreVertical, Pencil, Trash2, Loader2, Copy, Check } from "lucide-react";
 import { QRCodeCanvas } from "qrcode.react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";

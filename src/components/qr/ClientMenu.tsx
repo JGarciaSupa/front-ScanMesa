@@ -163,7 +163,7 @@ export default function ClientMenu({ tableId, tenantData }: ClientMenuProps) {
         socket = new WebSocket(wsUrl.toString());
 
         socket.onopen = () => {
-          console.log('[WS Cliente] Conectado para recibir actualizaciones de mesa');
+          // Conectado para recibir actualizaciones de mesa
         };
 
         socket.onmessage = (event) => {
@@ -172,7 +172,6 @@ export default function ClientMenu({ tableId, tenantData }: ClientMenuProps) {
             
             // Si la sesión actual es cerrada por el mesero
             if (eventName === 'session:closed' && data.sessionId === sessionId) {
-              console.log('[WS Cliente] La sesión ha sido cerrada por el personal');
               
               // Limpiamos todo para forzar al cliente a poner su nombre de nuevo
               localStorage.removeItem(`table_session_${tableId}`);
@@ -200,7 +199,7 @@ export default function ClientMenu({ tableId, tenantData }: ClientMenuProps) {
         };
 
         socket.onclose = () => {
-          console.log('[WS Cliente] Desconectado');
+          // Desconectado
           if (mounted) {
             reconnectTimeout = setTimeout(initSocket, 5000); // Reintentar en 5 seg
           }

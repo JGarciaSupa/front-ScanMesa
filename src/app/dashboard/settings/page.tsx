@@ -2,13 +2,13 @@
 
 import { useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
+
 import { Badge } from "@/components/ui/badge";
-import { UploadCloud, Building, Palette, MapPin, CreditCard, Save, Image as ImageIcon, MessageCircle, Loader2 } from "lucide-react";
+import { Building, Palette, MapPin, CreditCard, Save, MessageCircle, Loader2 } from "lucide-react";
 import { getSettingsAction, updateSettingsAction } from "@/app/actions/settings";
 import { toast } from "sonner";
 import GeneralProfile from '../../../components/dashboard/settings/tabs/GeneralProfile';

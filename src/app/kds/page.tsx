@@ -84,12 +84,10 @@ export default function KDSPage() {
       socketRef.current = socket;
 
       socket.onopen = () => {
-        console.log('[WS Nativo] Conectado al servidor de cocina');
         setIsConnected(true);
       };
 
       socket.onclose = () => {
-        console.log('[WS Nativo] Desconectado del servidor');
         setIsConnected(false);
         // Reintentar conexión tras 3 segundos
         if (mounted) {
@@ -106,7 +104,6 @@ export default function KDSPage() {
           const { event: eventName, data } = JSON.parse(event.data);
           
           if (eventName === 'order:created') {
-            console.log('[WS Nativo] Nuevo pedido recibido:', data);
             toast("Nuevo pedido recibido", {
               description: `Mesa: ${data.table || 'Principal'}` as any,
               action: {
@@ -132,11 +129,10 @@ export default function KDSPage() {
           }
 
           if (eventName === 'order:completed') {
-            console.log('[WS Nativo] Orden completada:', data.sessionId);
             setOrders((prev) => prev.filter((ord) => ord.sessionId !== data.sessionId));
           }
         } catch (e) {
-          console.error('[WS Nativo] Error procesando mensaje:', e);
+          // Error procesando mensaje
         }
       };
     }
@@ -185,29 +181,6 @@ export default function KDSPage() {
     }
   }, [fetchOrders]);
 
-  const markOrderReady = useCallback(async (sessionId: number) => {
-    setOrders((prev) => {
-      const order = prev.find(o => o.sessionId === sessionId);
-      const allReady = order?.items.every(i => i.isReady);
-      if (allReady) {
-        return prev.filter((ord) => ord.sessionId !== sessionId);
-      }
-      return prev;
-    });
-
-    try {
-      const res = await markOrderCompleteAction(sessionId);
-      if (res.success) {
-        toast.success("Pedido despachado correctamente");
-      } else {
-        toast.error(res.error || "Error al despachar pedido");
-      }
-    } catch (error) {
-      console.error("Error completing order:", error);
-      toast.error("Error de conexión");
-      fetchOrders();
-    }
-  }, [fetchOrders]);
 
   const getTimeColorSet = (minutes: number) => {
     if (minutes >= 20) {
