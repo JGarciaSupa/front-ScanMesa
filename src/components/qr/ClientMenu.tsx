@@ -183,6 +183,12 @@ export default function ClientMenu({ tableId, tenantData }: ClientMenuProps) {
               showToast("La mesa ha sido cerrada", "error");
             }
 
+            if (eventName === 'guest:joined' && data.sessionId === sessionId) {
+              if (data.guestId !== guestId) {
+                showToast(`${data.guestName} se unió a la mesa`, "success");
+              }
+            }
+
             // Si se abre una nueva sesión (por si acaso alguien más la abre)
             if (eventName === 'table:opened' && data.tableId === (internalTableId || parseInt(tableId))) {
                 // Podríamos refrescar el estado de ocupación
@@ -264,7 +270,8 @@ export default function ClientMenu({ tableId, tenantData }: ClientMenuProps) {
             localStorage.setItem(`table_session_${tableId}`, JSON.stringify({
               guestId: newGuestId,
               guestName: newGuestName,
-              sessionId: newSessionId
+              sessionId: newSessionId,
+              isHost: true
             }));
 
             showToast("Mesa lista", "success");
@@ -301,7 +308,8 @@ export default function ClientMenu({ tableId, tenantData }: ClientMenuProps) {
             localStorage.setItem(`table_session_${tableId}`, JSON.stringify({
               guestId: newGuestId,
               guestName: newGuestName,
-              sessionId: sessionId
+              sessionId: sessionId,
+              isHost: result.data.isHost || false
             }));
 
             showToast("Bienvenido", "success");

@@ -2,22 +2,13 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { 
-  Users, 
   Clock, 
-  BellRing, 
   LogOut, 
-  PlusCircle, 
   CheckCircle2, 
-  AlertCircle,
   Loader2,
-  RefreshCw,
-  MoreVertical,
   Wifi,
-  WifiOff,
-  Bell
+  WifiOff
 } from "lucide-react";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -29,10 +20,9 @@ import {
   DialogHeader,
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { getPosTablesAction, openPosSessionAction } from "@/app/actions/pos";
+import { getPosTablesAction } from "@/app/actions/pos";
 import { closeSessionAction, getSessionItemsAction, markItemServedAction, markOrderCompleteAction } from "@/app/actions/orders";
 import { getSocketConfigAction } from "@/app/actions/socket-config";
 import { useRef } from "react";
@@ -60,6 +50,7 @@ interface OrderItem {
   guestId: number;
   guestName: string;
   kitchenStatus: "pending" | "served";
+  invoiceId?: number | null;
 }
 
 export default function PosPage() {
@@ -79,14 +70,11 @@ export default function PosPage() {
   const addAlert = usePosStore((state) => state.addAlert);
 
   useEffect(() => {
-    // Check for notification permission on mount
     if (typeof window !== "undefined" && "Notification" in window) {
       const currentPermission = Notification.permission;
       setPermissionState(currentPermission);
-      
       const storedPref = localStorage.getItem("pos-notifications-enabled");
       
-      // Only show prompt if permission is default and we haven't been told to stay quiet
       if (currentPermission === "default" && storedPref !== "false") {
         setShowNotificationPrompt(true);
       } else if (currentPermission === "granted") {
@@ -103,9 +91,7 @@ export default function PosPage() {
     }
 
     if (Notification.permission === "denied") {
-      toast.error("Las notificaciones están bloqueadas en tu navegador. Debes habilitarlas en la configuración del sitio (icono del candado).", {
-        duration: 8000
-      });
+      toast.error("Las notificaciones están bloqueadas. Habilítalas en la configuración del sitio.", { duration: 8000 });
       setPermissionState("denied");
       setNotificationsEnabled(false);
       return;
@@ -125,7 +111,6 @@ export default function PosPage() {
       setNotificationsEnabled(false);
       if (permission === "denied") {
         localStorage.setItem("pos-notifications-enabled", "false");
-        toast.error("Permiso denegado. Para activarlas, haz clic en el icono del candado en la barra de direcciones.");
       }
     }
     setShowNotificationPrompt(false);
@@ -135,9 +120,7 @@ export default function PosPage() {
     if (notificationsEnabled && Notification.permission === "granted") {
       try {
         new Notification(title, { body });
-      } catch (e) {
-        console.error("Error sending notification:", e);
-      }
+      } catch (e) { console.error(e); }
     }
   };
 
@@ -161,7 +144,6 @@ export default function PosPage() {
         toast.error(res.error || "Error al cargar mesas");
       }
     } catch (error) {
-      console.error("Error fetching tables:", error);
       toast.error("Error de conexión");
     } finally {
       setLoading(false);
@@ -175,10 +157,7 @@ export default function PosPage() {
     async function initSocket() {
       const config = await getSocketConfigAction();
       if (!mounted) return;
-
-      if (socketRef.current) {
-        socketRef.current.close();
-      }
+      if (socketRef.current) socketRef.current.close();
 
       const wsUrl = new URL(`${config.url.replace('http', 'ws')}/ws`);
       wsUrl.searchParams.set('token', config.token || '');
@@ -187,110 +166,50 @@ export default function PosPage() {
       const socket = new WebSocket(wsUrl.toString());
       socketRef.current = socket;
 
-      socket.onopen = () => {
-        console.log('[WS POS] Conectado');
-        setIsConnected(true);
-      };
-
+      socket.onopen = () => setIsConnected(true);
       socket.onclose = () => {
-        console.log('[WS POS] Desconectado');
         setIsConnected(false);
-        if (mounted) {
-          reconnectTimeout = setTimeout(initSocket, 3000);
-        }
+        if (mounted) reconnectTimeout = setTimeout(initSocket, 3000);
       };
 
       socket.onmessage = (event) => {
         try {
           const { event: eventName, data } = JSON.parse(event.data);
-          console.log(`[WS POS] Evento: ${eventName}`, data);
-
           if (eventName === 'table:opened' || eventName === 'session:closed' || eventName === 'order:created') {
             fetchTables();
-            
-            // Determinar sessionId (data puede ser un item o un array de items)
             const sessionId = data.sessionId || (Array.isArray(data) ? data[0]?.sessionId : null);
-
             if (eventName === 'order:created') {
-              sendPushNotification("¡Nuevo Pedido!", `Hay una nueva orden en camino.`);
-              addAlert({
-                title: "¡Nuevo Pedido!",
-                description: "Hay una nueva orden en camino.",
-                type: "info"
-              });
+              sendPushNotification("¡Nuevo Pedido!", "Hay una nueva orden en camino.");
+              addAlert({ title: "¡Nuevo Pedido!", description: "Hay una nueva orden en camino.", type: "info" });
             }
-
-            // Si tenemos la mesa abierta en el modal y hay un nuevo pedido, refrescar items
             if (eventName === 'order:created' && sessionId && selectedSessionIdRef.current === sessionId) {
               fetchSessionItems(sessionId);
             }
           }
 
           if (eventName === 'order-item:served') {
-            // Actualizar estado del item en la vista si coincide con la sesión actual
-            setTableItems((prev) =>
-              prev.map((item) =>
-                item.id === data.itemId ? { ...item, kitchenStatus: data.status } : item
-              )
-            );
-            
-            // Si es la mesa que estamos viendo, notificar
-            const description = `Un item ha sido marcado como servido en cocina.`;
-            toast.info(`¡Plato listo para servir!`, {
-              description
-            });
-            sendPushNotification("¡Plato listo!", description);
-            addAlert({
-              title: "¡Plato listo!",
-              description,
-              type: "success"
-            });
+            setTableItems((prev) => prev.map((item) => item.id === data.itemId ? { ...item, kitchenStatus: data.status } : item));
+            toast.info(`¡Plato listo para servir!`);
+            addAlert({ title: "¡Plato listo!", description: "Un pedido está listo para ser servido.", type: "success" });
           }
 
           if (eventName === 'waiter:called') {
-            const description = `Mesa ${data.tableId}: ${data.reason}`;
-            toast.warning(`¡Llamada de mozo!`, {
-              description,
-              duration: 10000,
-            });
-            sendPushNotification("¡Llamada de Mozo!", description);
-            addAlert({
-              title: "¡Llamada de Mozo!",
-              description,
-              type: "warning"
-            });
+            toast.warning(`¡Llamada de mozo!`, { description: `Mesa ${data.tableId}: ${data.reason}`, duration: 10000 });
+            addAlert({ title: "¡Llamada de Mozo!", description: `Mesa ${data.tableId}: ${data.reason}`, type: "warning" });
           }
 
           if (eventName === 'checkout:requested') {
-            const description = `Mesa ${data.tableId} solicita pagar con ${data.paymentMethod}.`;
-            toast.success(`¡Solicitud de cuenta!`, {
-              description,
-              duration: 10000,
-            });
-            sendPushNotification("¡Solicitud de Cuenta!", description);
-            addAlert({
-              title: "¡Solicitud de Cuenta!",
-              description,
-              type: "success"
-            });
+            toast.success(`¡Solicitud de cuenta!`, { description: `Mesa ${data.tableId} solicita pagar.`, duration: 10000 });
+            addAlert({ title: "¡Solicitud de Cuenta!", description: `Mesa ${data.tableId} solicita su cuenta.`, type: "success" });
             fetchTables();
           }
-        } catch (e) {
-          console.error('[WS POS] Error procesando mensaje:', e);
-        }
+        } catch (e) { console.error(e); }
       };
     }
 
     initSocket();
     fetchTables();
-
-    return () => {
-      mounted = false;
-      clearTimeout(reconnectTimeout);
-      if (socketRef.current) {
-        socketRef.current.close();
-      }
-    };
+    return () => { mounted = false; clearTimeout(reconnectTimeout); if (socketRef.current) socketRef.current.close(); };
   }, [fetchTables]);
 
   const fetchSessionItems = async (sessionId: number) => {
@@ -300,11 +219,7 @@ export default function PosPage() {
       if (result.success) {
         setTableItems(result.data);
       }
-    } catch (error) {
-      console.error("Error fetching items:", error);
-    } finally {
-      setLoadingItems(false);
-    }
+    } catch (error) { console.error(error); } finally { setLoadingItems(false); }
   };
 
   const handleOpenTable = (table: Table) => {
@@ -316,30 +231,12 @@ export default function PosPage() {
     }
   };
 
-  const handleOpenNewSession = async (tableId: number) => {
-    try {
-      setLoading(true);
-      const res = await openPosSessionAction(tableId);
-      if (res.success) {
-        toast.success("Mesa abierta correctamente");
-        fetchTables();
-        setSelectedTable(null);
-      } else {
-        toast.error(res.error || "Error al abrir mesa");
-      }
-    } catch (error) {
-      toast.error("Error de conexión");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleLiberateTable = async (sessionId: number) => {
     try {
       setIsClosing(true);
-      const res = await closeSessionAction(sessionId);
+      const res = await closeSessionAction(sessionId, {});
       if (res.success) {
-        toast.success("Mesa liberada correctamente");
+        toast.success("Venta registrada y mesa liberada");
         setIsConfirmingClose(false);
         setSelectedTable(null);
         fetchTables();
@@ -355,130 +252,71 @@ export default function PosPage() {
 
   const handleMarkAsServed = async (itemId: number, currentStatus: string) => {
     if (currentStatus === "served") return;
-
-    // Optimistic update
-    setTableItems(prev => prev.map(item => 
-      item.id === itemId ? { ...item, kitchenStatus: "served" } : item
-    ));
-
+    setTableItems(prev => prev.map(item => item.id === itemId ? { ...item, kitchenStatus: "served" } : item));
     try {
       const res = await markItemServedAction(itemId);
       if (res.success) {
-        toast.success("Producto marcado como listo");
-        
-        // Verificar si después de este cambio, todos los items de la sesión están listos
-        // Usamos el estado actualizado (tableItems)
-        const updatedItems = tableItems.map(item => 
-          item.id === itemId ? { ...item, kitchenStatus: "served" } : item
-        );
-        
+        toast.success("Servido");
+        const updatedItems = tableItems.map(item => item.id === itemId ? { ...item, kitchenStatus: "served" } : item);
         const allServed = updatedItems.every(item => item.kitchenStatus === "served");
-        
         if (allServed && selectedTable?.activeSession) {
-          // Si todos están listos, notificamos al KDS que esta orden ya se puede quitar
-          // Esto dispara el evento order:completed en el backend
           await markOrderCompleteAction(selectedTable.activeSession.id);
-          console.log("[POS] Orden marcada como completa automáticamente");
         }
       } else {
         toast.error(res.error || "Error al actualizar");
-        // Rollback if failed
-        if (selectedTable?.activeSession) {
-          fetchSessionItems(selectedTable.activeSession.id);
-        }
+        if (selectedTable?.activeSession) fetchSessionItems(selectedTable.activeSession.id);
       }
-    } catch (error) {
-      toast.error("Error de conexión");
-    }
+    } catch (error) { toast.error("Error de conexión"); }
   };
 
-  // Group items by guest
+  // Group items by guest for display
   const dinersMap: Record<number, { name: string, items: OrderItem[] }> = {};
   tableItems.forEach(item => {
-    if (!dinersMap[item.guestId]) {
-      dinersMap[item.guestId] = {
-        name: item.guestName,
-        items: []
-      };
-    }
+    if (!dinersMap[item.guestId]) dinersMap[item.guestId] = { name: item.guestName, items: [] };
     dinersMap[item.guestId].items.push(item);
   });
-  
-  const totalAmount = tableItems.reduce((acc, item) => acc + (Number(item.price) * item.quantity), 0);
+
+  const grandTotal = tableItems.reduce((acc, item) => acc + (Number(item.price) * item.quantity), 0);
 
   return (
     <div className="p-4 md:p-8 max-w-7xl mx-auto min-h-screen">
       <div className="flex justify-between items-center mb-8">
         <div className="flex items-center gap-4">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">POS - Mapa de Mesas</h1>
-            <p className="text-muted-foreground">Monitoreo y gestión de sesiones activas.</p>
+            <h1 className="text-3xl font-black tracking-tight">POS - Gestión de Salón</h1>
+            <p className="text-muted-foreground text-sm font-medium">Control en tiempo real de las mesas del restaurante.</p>
           </div>
-          <Badge 
-            variant={isConnected ? "secondary" : "destructive"} 
-            className={`font-bold transition-all duration-300 ${isConnected ? "bg-green-100 text-green-700 hover:bg-green-100" : ""}`}
-          >
-            {isConnected ? (
-              <><Wifi className="w-3 h-3 mr-1.5" /> ONLINE</>
-            ) : (
-              <><WifiOff className="w-3 h-3 mr-1.5" /> OFFLINE</>
-            )}
+          <Badge variant={isConnected ? "secondary" : "destructive"} className={cn("font-bold", isConnected ? "bg-green-100 text-green-700" : "")}>
+            {isConnected ? <Wifi className="w-3 h-3 mr-1" /> : <WifiOff className="w-3 h-3 mr-1" />}
+            {isConnected ? "ONLINE" : "OFFLINE"}
           </Badge>
         </div>
-        <div className="flex items-center gap-6">
-          <div className="hidden md:flex items-center gap-3 bg-slate-100 px-4 py-2 rounded-full border border-slate-200">
-            <div className="flex items-center gap-2">
-              <Bell className={cn("w-4 h-4", notificationsEnabled ? "text-primary fill-primary/10" : "text-muted-foreground")} />
-              <Label htmlFor="notifications" className="text-sm font-medium cursor-pointer">
-                Notificaciones
-              </Label>
-            </div>
-            <Switch 
-              id="notifications" 
-              checked={notificationsEnabled} 
-              onCheckedChange={handleToggleNotifications}
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Notification Toggle for mobile (floating or integrated if needed) - for now just keep it in header */}
-      <div className="md:hidden flex items-center justify-between bg-white p-3 rounded-lg border border-slate-200 mb-6">
-        <div className="flex items-center gap-2">
-          <Bell className={cn("w-4 h-4", notificationsEnabled ? "text-primary" : "text-muted-foreground")} />
-          <span className="text-sm font-medium">Notificaciones Push</span>
-        </div>
-        <Switch 
-          checked={notificationsEnabled} 
-          onCheckedChange={handleToggleNotifications}
-        />
       </div>
 
       {loading && tables.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20">
+        <div className="flex flex-col items-center justify-center py-20 animate-pulse">
           <Loader2 className="w-10 h-10 animate-spin text-primary mb-4" />
-          <p>Cargando mesas...</p>
+          <p className="font-bold text-slate-400">Preparando mapa de mesas...</p>
         </div>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
           {tables.map((table) => (
-            <Card 
+            <Card
               key={table.id}
               className={cn(
-                "cursor-pointer transition-all hover:scale-105 border-2",
+                "cursor-pointer transition-all hover:shadow-xl hover:-translate-y-1 border-2",
                 table.status === "occupied" ? "bg-red-50 border-red-200" : "bg-emerald-50 border-emerald-200"
               )}
               onClick={() => handleOpenTable(table)}
             >
               <CardContent className="p-6 flex flex-col items-center justify-center text-center gap-2">
                 <span className="text-3xl font-black text-slate-800 leading-none">{table.name}</span>
-                <Badge variant={table.status === "occupied" ? "destructive" : "secondary"} className="text-[10px] uppercase tracking-wider">
+                <Badge variant={table.status === "occupied" ? "destructive" : "secondary"} className="text-[10px] uppercase font-black tracking-widest">
                   {table.status === "occupied" ? "Ocupada" : "Libre"}
                 </Badge>
-                {table.activeSession && (
-                  <div className="flex items-center gap-1 text-[10px] text-red-600 font-bold mt-1 bg-red-100 px-2 py-0.5 rounded-full">
-                    <Clock className="w-3 h-3" />
-                    ACTIVA
+                {table.status === "occupied" && (
+                  <div className="flex items-center gap-1 text-[10px] text-red-600 font-black mt-1 bg-red-100 px-3 py-1 rounded-full">
+                    <Clock className="w-3 h-3" /> EN MARCHA
                   </div>
                 )}
               </CardContent>
@@ -489,60 +327,55 @@ export default function PosPage() {
 
       {/* Detail Modal */}
       <Dialog open={!!selectedTable} onOpenChange={(open) => !open && setSelectedTable(null)}>
-        <DialogContent className="sm:max-w-[450px] p-0 overflow-hidden">
+        <DialogContent className="sm:max-w-[450px] p-0 overflow-hidden rounded-[32px] border-none shadow-2xl">
           <DialogHeader className={cn(
-            "p-6 text-white pb-4",
+            "p-8 text-white pb-6",
             selectedTable?.status === "occupied" ? "bg-red-600" : "bg-emerald-600"
           )}>
-            <DialogTitle className="text-2xl font-black uppercase">Mesa {selectedTable?.name}</DialogTitle>
-            <DialogDescription className="text-white/80">
-              {selectedTable?.status === "occupied" ? "En consumo" : "Disponible"}
+            <DialogTitle className="text-3xl font-black uppercase tracking-tighter">Mesa {selectedTable?.name}</DialogTitle>
+            <DialogDescription className="text-white/80 font-bold uppercase text-xs tracking-widest">
+              {selectedTable?.status === "occupied" ? "Consumo en curso" : "Mesa disponível"}
             </DialogDescription>
           </DialogHeader>
 
-          <div className="p-6">
+          <div className="p-8 space-y-8">
             {selectedTable?.status === "occupied" ? (
               <div className="space-y-6">
-                <div className="flex justify-between items-end border-b pb-4">
-                  <span className="text-muted-foreground font-medium">Consumo Total:</span>
-                  <span className="text-3xl font-black tracking-tighter">€{totalAmount.toFixed(2)}</span>
+                <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100">
+                  <span className="text-muted-foreground font-black text-[10px] uppercase tracking-widest block mb-1">Total acumulado:</span>
+                  <span className="text-4xl font-black tracking-tighter text-slate-900 block">€{grandTotal.toFixed(2)}</span>
                 </div>
 
-                <ScrollArea className="h-[250px] pr-4">
+                <ScrollArea className="max-h-[300px] pr-2">
                   {loadingItems ? (
-                    <div className="flex justify-center p-10"><Loader2 className="w-8 h-8 animate-spin" /></div>
+                    <div className="flex justify-center p-10"><Loader2 className="w-8 h-8 animate-spin text-slate-300" /></div>
                   ) : Object.keys(dinersMap).length > 0 ? (
                     <div className="space-y-6">
                       {Object.entries(dinersMap).map(([id, diner]) => (
-                        <div key={id} className="space-y-2">
-                          <h4 className="text-xs font-bold text-muted-foreground uppercase flex justify-between">
+                        <div key={id} className="space-y-3">
+                          <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-2 flex justify-between">
                             {diner.name}
-                            <span>€{diner.items.reduce((s, i) => s + (i.price * i.quantity), 0).toFixed(2)}</span>
+                            <span className="text-slate-900">€{diner.items.reduce((s, i) => s + (i.price * i.quantity), 0).toFixed(2)}</span>
                           </h4>
-                          <ul className="space-y-1">
+                          <ul className="space-y-3">
                             {diner.items.map(item => (
-                              <li 
-                                key={item.id} 
-                                className={cn(
-                                  "flex justify-between items-center text-sm p-1 rounded transition-colors group",
-                                  item.kitchenStatus === "served" ? "bg-slate-50 opacity-60" : "hover:bg-slate-50 cursor-pointer"
-                                )}
-                                onClick={() => handleMarkAsServed(item.id, item.kitchenStatus)}
-                              >
-                                <div className="flex items-center gap-2">
-                                  <div className={cn(
-                                    "w-4 h-4 rounded border flex items-center justify-center transition-colors",
-                                    item.kitchenStatus === "served" 
-                                      ? "bg-slate-900 border-slate-900" 
-                                      : "border-slate-300 group-hover:border-slate-400"
-                                  )}>
-                                    {item.kitchenStatus === "served" && <CheckCircle2 className="w-3 h-3 text-white" />}
-                                  </div>
-                                  <span className={cn(item.kitchenStatus === "served" && "line-through")}>
-                                    {item.quantity}x {item.name}
-                                  </span>
+                              <li key={item.id} className="flex justify-between items-center group">
+                                <div className="flex flex-col flex-1">
+                                  <span className="font-bold text-slate-900 text-sm">{item.quantity}x {item.name}</span>
+                                  {item.kitchenStatus !== "served" ? (
+                                    <button 
+                                      onClick={() => handleMarkAsServed(item.id, item.kitchenStatus)}
+                                      className="text-[9px] bg-amber-100 text-amber-700 hover:bg-amber-200 px-2 py-0.5 rounded-full font-black tracking-tighter flex items-center gap-1 mt-1 transition-colors"
+                                    >
+                                      <Clock className="w-2.5 h-2.5" /> MARCAR ENTREGADO
+                                    </button>
+                                  ) : (
+                                    <span className="text-[9px] text-emerald-500 font-bold tracking-tighter flex items-center gap-1 mt-0.5">
+                                      <CheckCircle2 className="w-2.5 h-2.5" /> ENTREGADO
+                                    </span>
+                                  )}
                                 </div>
-                                <span className="font-medium">€{(item.price * item.quantity).toFixed(2)}</span>
+                                <span className="font-black text-slate-900 text-sm">€{(item.price * item.quantity).toFixed(2)}</span>
                               </li>
                             ))}
                           </ul>
@@ -550,26 +383,26 @@ export default function PosPage() {
                       ))}
                     </div>
                   ) : (
-                    <p className="text-center py-10 text-muted-foreground italic">Sin consumos registrados todavía.</p>
+                    <p className="text-center py-10 text-slate-300 font-bold italic">Esperando pedidos...</p>
                   )}
                 </ScrollArea>
 
-                <div className="pt-4 flex flex-col gap-3">
-                  <Button 
-                    className="w-full h-11 bg-red-600 hover:bg-red-700 text-white font-bold"
-                    onClick={() => setIsConfirmingClose(true)}
-                    disabled={!selectedTable.activeSession}
-                  >
-                    <LogOut className="w-4 h-4 mr-2" />
-                    Cobrar y Liberar Mesa
-                  </Button>
-                </div>
+                <Button 
+                  className="w-full h-14 bg-slate-900 hover:bg-black text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl transition-all active:scale-95"
+                  onClick={() => setIsConfirmingClose(true)}
+                  disabled={!selectedTable.activeSession || grandTotal === 0}
+                >
+                  <LogOut className="w-5 h-5 mr-3" />
+                  Cobrar y Liberar Mesa
+                </Button>
               </div>
             ) : (
-              <div className="text-center py-10 space-y-4">
-                <CheckCircle2 className="w-12 h-12 text-emerald-500/20 mx-auto" />
-                <p className="text-muted-foreground font-medium">La mesa {selectedTable?.name} está actualmente disponible.</p>
-                <Button variant="outline" className="w-full h-11" onClick={() => setSelectedTable(null)}>Cerrar</Button>
+              <div className="text-center py-10 space-y-6">
+                <div className="w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center mx-auto">
+                  <CheckCircle2 className="w-10 h-10 text-emerald-500" />
+                </div>
+                <p className="text-slate-500 font-medium">La mesa está lista para nuevos clientes.</p>
+                <Button variant="outline" className="w-full h-12 rounded-2xl font-bold" onClick={() => setSelectedTable(null)}>Volver</Button>
               </div>
             )}
           </div>
@@ -578,73 +411,34 @@ export default function PosPage() {
 
       {/* Confirmation Modal for Closing Session */}
       <Dialog open={isConfirmingClose} onOpenChange={setIsConfirmingClose}>
-        <DialogContent className="sm:max-w-[400px]">
-          <DialogHeader>
-            <DialogTitle>¿Confirmar cierre de mesa?</DialogTitle>
-            <DialogDescription>
-              Esta acción marcará la mesa {selectedTable?.name} como libre y cerrará la sesión de consumo. Asegúrate de haber procesado el pago.
+        <DialogContent className="sm:max-w-[400px] p-8 rounded-[32px]">
+          <DialogHeader className="space-y-3">
+            <DialogTitle className="text-2xl font-black tracking-tight">Finalizar servicio</DialogTitle>
+            <DialogDescription className="text-slate-500 font-medium">
+              Confirma el pago para liberar la mesa y generar el comprobante.
             </DialogDescription>
           </DialogHeader>
-          <div className="flex flex-col gap-3 mt-4">
-            <Button 
-              className="bg-red-600 hover:bg-red-700 text-white font-bold h-11"
+
+          <div className="space-y-6 py-4">
+
+            <div className="bg-slate-900 p-6 rounded-[24px] text-white flex justify-between items-center shadow-lg shadow-slate-200">
+              <span className="text-[10px] font-black uppercase tracking-widest opacity-60">Total a cobrar</span>
+              <span className="text-3xl font-black tracking-tighter">€{grandTotal.toFixed(2)}</span>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-3">
+            <Button
+              className="bg-red-600 hover:bg-red-700 text-white font-black h-14 rounded-2xl uppercase tracking-widest shadow-xl shadow-red-100 transition-all active:scale-95"
               onClick={() => selectedTable?.activeSession && handleLiberateTable(selectedTable.activeSession.id)}
               disabled={isClosing}
             >
-              {isClosing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <LogOut className="w-4 h-4 mr-2" />}
-              Sí, Cobrar y Liberar
+              {isClosing ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5 mr-3" />}
+              Confirmar y Cerrar Mesa
             </Button>
-            <Button variant="outline" className="h-11" onClick={() => setIsConfirmingClose(false)}>
+            <Button variant="ghost" className="h-12 rounded-2xl font-bold text-slate-400" onClick={() => setIsConfirmingClose(false)}>
               Cancelar
             </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Initial Notification Prompt */}
-      <Dialog open={showNotificationPrompt} onOpenChange={setShowNotificationPrompt}>
-        <DialogContent className="sm:max-w-[400px] text-center p-8">
-          <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-6">
-            <Bell className="w-8 h-8 text-primary animate-bounce" />
-          </div>
-          <DialogHeader>
-            <DialogTitle className="text-2xl font-bold">
-              {permissionState === "denied" ? "Permiso Denegado" : "Activar Notificaciones"}
-            </DialogTitle>
-            <DialogDescription className="text-base pt-2">
-              {permissionState === "denied" 
-                ? "Has bloqueado las notificaciones en este navegador. Para recibirlas, debes hacer clic en el candado junto a la URL y permitir las notificaciones."
-                : "¿Deseas recibir notificaciones en tiempo real cuando un plato esté listo o un cliente necesite atención?"}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex flex-col gap-3 mt-8">
-            {permissionState === "denied" ? (
-              <Button 
-                className="w-full h-12 font-bold"
-                onClick={() => setShowNotificationPrompt(false)}
-              >
-                Entendido
-              </Button>
-            ) : (
-              <>
-                <Button 
-                  className="w-full h-12 font-bold text-lg"
-                  onClick={requestNotificationPermission}
-                >
-                  Sí, activar notificaciones
-                </Button>
-                <Button 
-                  variant="ghost" 
-                  className="w-full h-12 text-muted-foreground"
-                  onClick={() => {
-                    setShowNotificationPrompt(false);
-                    localStorage.setItem("pos-notifications-enabled", "false");
-                  }}
-                >
-                  Ahora no
-                </Button>
-              </>
-            )}
           </div>
         </DialogContent>
       </Dialog>

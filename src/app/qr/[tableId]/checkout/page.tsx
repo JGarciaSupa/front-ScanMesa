@@ -2,14 +2,19 @@
 
 import { useState, useMemo, use, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { CreditCard, Banknote, Receipt, CheckCircle, ChevronLeft, Loader2 } from "lucide-react";
+import { 
+  Receipt, 
+  CheckCircle, 
+  ChevronLeft, 
+  Loader2, 
+  ArrowRight,
+  Clock,
+  Bell
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
-import { Input } from "@/components/ui/input";
-import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
 interface OrderItem {
   id: number;
@@ -22,7 +27,7 @@ interface OrderItem {
 
 export default function CheckoutPage({ params }: { params: Promise<{ tableId: string }> }) {
   const unwrappedParams = use(params);
-  const tableId = unwrappedParams.tableId; // Este es el hash
+  const tableHash = unwrappedParams.tableId; 
   const router = useRouter();
 
   // Estados de sesión
@@ -30,18 +35,12 @@ export default function CheckoutPage({ params }: { params: Promise<{ tableId: st
   const [sessionId, setSessionId] = useState<number | null>(null);
   const [tableName, setTableName] = useState("");
   const [internalTableId, setInternalTableId] = useState<number | null>(null);
+  const [currency, setCurrency] = useState("$");
 
   // Estados de datos
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   const [isLoadingData, setIsLoadingData] = useState(true);
   
-  // Estados de UI
-  const [paymentMode, setPaymentMode] = useState<"part" | "all">("part");
-  const [selectedIds, setSelectedIds] = useState<number[]>([]);
-  const [paymentMethod, setPaymentMethod] = useState<"card" | "cash">("card");
-  const [billingName, setBillingName] = useState("");
-  const [billingId, setBillingId] = useState("");
-
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
 
@@ -57,10 +56,21 @@ export default function CheckoutPage({ params }: { params: Promise<{ tableId: st
       try {
         const tenantSlug = getTenantSlug();
         
-        // 1. Obtener info de la mesa (ID real y nombre)
-        const tableRes = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/tenant/tables/hash/${tableId}`, {
-          headers: { "x-schema-tenant": tenantSlug },
-        });
+        // 1. Obtener info del Restaurante (Ajustes) y Mesa
+        const [settingsRes, tableRes] = await Promise.all([
+          fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/tenant/settings`, {
+            headers: { "x-schema-tenant": tenantSlug },
+          }),
+          fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/tenant/tables/hash/${tableHash}`, {
+            headers: { "x-schema-tenant": tenantSlug },
+          })
+        ]);
+
+        const settingsData = await settingsRes.json();
+        if (settingsData.success) {
+          setCurrency(settingsData.data.currency || "$");
+        }
+
         const tableData = await tableRes.json();
         if (tableData.success && tableData.data) {
           setTableName(tableData.data.name);
@@ -68,9 +78,9 @@ export default function CheckoutPage({ params }: { params: Promise<{ tableId: st
         }
 
         // 2. Obtener sesión de localStorage
-        const savedSession = localStorage.getItem(`table_session_${tableId}`);
+        const savedSession = localStorage.getItem(`table_session_${tableHash}`);
         if (!savedSession) {
-          router.push(`/qr/${tableId}`);
+          router.push(`/qr/${tableHash}`);
           return;
         }
 
@@ -78,18 +88,15 @@ export default function CheckoutPage({ params }: { params: Promise<{ tableId: st
         setGuestId(sGuestId);
         setSessionId(sSessionId);
 
-        // 3. Obtener items de la sesión
-        const itemsRes = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/tenant/orders/session/${sSessionId}/items`, {
-          headers: { "x-schema-tenant": tenantSlug },
-        });
-        const itemsData = await itemsRes.json();
-        if (itemsData.success) {
-          setOrderItems(itemsData.data);
-          // Por defecto seleccionar mis propios items
-          const myItems = itemsData.data
-            .filter((item: OrderItem) => item.guestId === sGuestId)
-            .map((item: OrderItem) => item.id);
-          setSelectedIds(myItems);
+        // 3. Obtener items
+        if (sSessionId) {
+          const itemsRes = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/tenant/orders/session/${sSessionId}/items`, {
+            headers: { "x-schema-tenant": tenantSlug },
+          });
+          const itemsData = await itemsRes.json();
+          if (itemsData.success) {
+            setOrderItems(itemsData.data);
+          }
         }
       } catch (error) {
         console.error("Error fetching checkout data:", error);
@@ -99,9 +106,9 @@ export default function CheckoutPage({ params }: { params: Promise<{ tableId: st
     };
 
     fetchData();
-  }, [tableId]);
+  }, [tableHash, router]);
 
-  // WebSocket para detectar cierre de mesa en tiempo real
+  // WebSocket para detectar cierre de mesa
   useEffect(() => {
     if (!sessionId) return;
 
@@ -123,9 +130,8 @@ export default function CheckoutPage({ params }: { params: Promise<{ tableId: st
           try {
             const { event: eventName, data } = JSON.parse(event.data);
             if (eventName === 'session:closed' && data.sessionId === sessionId) {
-              console.log('[WS Checkout] La mesa ha sido cerrada');
-              localStorage.removeItem(`table_session_${tableId}`);
-              router.push(`/qr/${tableId}`);
+              localStorage.removeItem(`table_session_${tableHash}`);
+              router.push(`/qr/${tableHash}`);
             }
           } catch (e) {
             console.error('[WS Checkout] Error:', e);
@@ -147,28 +153,13 @@ export default function CheckoutPage({ params }: { params: Promise<{ tableId: st
       clearTimeout(reconnectTimeout);
       if (socket) socket.close();
     };
-  }, [sessionId, tableId, router]);
+  }, [sessionId, tableHash, router]);
 
-  // Cálculos de totales
   const grandTotal = useMemo(() => {
     return orderItems.reduce((sum, item) => sum + (Number(item.price) * item.quantity), 0);
   }, [orderItems]);
 
-  const totalToPay = useMemo(() => {
-    if (paymentMode === "all") return grandTotal;
-    return orderItems
-      .filter(item => selectedIds.includes(item.id))
-      .reduce((sum, item) => sum + (Number(item.price) * item.quantity), 0);
-  }, [paymentMode, selectedIds, grandTotal, orderItems]);
-
-  const toggleItem = (itemId: number) => {
-    if (paymentMode === "all") return;
-    setSelectedIds(prev => 
-      prev.includes(itemId) ? prev.filter(id => id !== itemId) : [...prev, itemId]
-    );
-  };
-
-  const handleCheckoutRequest = async () => {
+  const handleCallWaiterToPay = async () => {
     if (!internalTableId) return;
     setIsSubmitting(true);
     
@@ -182,17 +173,16 @@ export default function CheckoutPage({ params }: { params: Promise<{ tableId: st
         },
         body: JSON.stringify({
           tableId: internalTableId,
-          items: paymentMode === 'all' ? orderItems.map(i => i.id) : selectedIds,
-          paymentMethod,
-          billingInfo: billingName ? { name: billingName, id: billingId } : null
+          items: orderItems.map(i => i.id),
         })
       });
       
       if (response.ok) {
         setIsSuccess(true);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
       }
     } catch (error) {
-      console.error("Error requesting checkout:", error);
+      console.error("Error calling waiter:", error);
     } finally {
       setIsSubmitting(false);
     }
@@ -200,28 +190,43 @@ export default function CheckoutPage({ params }: { params: Promise<{ tableId: st
 
   if (isLoadingData) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-dvh bg-slate-50">
-        <Loader2 className="w-10 h-10 text-slate-400 animate-spin mb-4" />
-        <p className="text-slate-500 font-medium">Cargando resumen...</p>
+      <div className="flex flex-col items-center justify-center min-h-dvh bg-white">
+        <Loader2 className="w-12 h-12 text-slate-900 animate-spin mb-4" />
+        <p className="text-slate-500 font-medium animate-pulse">Cargando tu cuenta...</p>
       </div>
     );
   }
 
   if (isSuccess) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-dvh p-6 text-center bg-slate-50 animate-in fade-in zoom-in-95 duration-500">
-        <div className="bg-green-100 p-4 rounded-full mb-6">
-          <CheckCircle className="w-20 h-20 text-green-600" />
+      <div className="flex flex-col items-center justify-center min-h-dvh p-8 text-center bg-white animate-in fade-in duration-700">
+        <div className="relative mb-8">
+          <div className="absolute inset-0 bg-green-500 rounded-full animate-ping opacity-20"></div>
+          <div className="relative bg-green-500 p-6 rounded-full shadow-xl shadow-green-200">
+            <CheckCircle className="w-16 h-16 text-white" />
+          </div>
         </div>
-        <h1 className="text-3xl font-extrabold text-slate-900 mb-3 tracking-tight">¡Pedido enviado!</h1>
-        <p className="text-lg text-slate-600 mb-8 max-w-70">
-          El mozo viene en camino a cobrarte <strong className="text-slate-900 font-bold">€ {totalToPay.toFixed(2)}</strong> en <strong className="text-slate-900 font-bold">{paymentMethod === 'card' ? 'Tarjeta' : 'Efectivo'}</strong>.
+        
+        <h1 className="text-3xl font-black text-slate-900 mb-4 tracking-tight">¡Pedido enviado!</h1>
+        
+        <div className="bg-slate-50 border border-slate-100 p-6 rounded-3xl mb-8 w-full max-w-sm">
+          <p className="text-slate-500 text-sm uppercase font-bold tracking-widest mb-1">Monto total</p>
+          <p className="text-4xl font-black text-slate-900 mb-4">{currency} {grandTotal.toFixed(2)}</p>
+          <div className="flex items-center justify-center gap-2 text-slate-600 bg-white border border-slate-200 py-3 px-4 rounded-2xl">
+            <Clock className="w-4 h-4 text-amber-500" />
+            <span className="text-sm font-semibold">El mozo está en camino</span>
+          </div>
+        </div>
+
+        <p className="text-slate-500 text-sm mb-10 max-w-xs mx-auto">
+          Por favor, espera un momento. El mozo traerá la cuenta a tu mesa.
         </p>
+
         <Button 
           variant="outline" 
           size="lg"
-          className="w-full max-w-sm rounded-xl border-slate-300 text-slate-700 font-medium hover:bg-slate-100" 
-          onClick={() => router.push(`/qr/${tableId}`)}
+          className="w-full max-w-sm h-14 rounded-2xl border-2 border-slate-200 text-slate-900 font-black hover:bg-slate-50 active:scale-95 transition-all" 
+          onClick={() => router.push(`/qr/${tableHash}`)}
         >
           Volver al menú
         </Button>
@@ -230,163 +235,97 @@ export default function CheckoutPage({ params }: { params: Promise<{ tableId: st
   }
 
   return (
-    <div className="flex flex-col min-h-dvh bg-slate-50 pb-36 font-sans">
-      <header className="bg-white p-6 shadow-sm sticky top-0 z-10 border-b border-slate-100/50">
-        <div className="flex items-center gap-4 mb-4">
-          <Button variant="ghost" size="icon" onClick={() => router.back()} className="-ml-2 hover:bg-slate-100">
-            <ChevronLeft className="w-6 h-6 text-slate-700" />
+    <div className="flex flex-col min-h-dvh bg-white pb-40 font-sans selection:bg-slate-900 selection:text-white">
+      {/* Header */}
+      <header className="bg-white/80 backdrop-blur-md px-6 py-6 sticky top-0 z-10 border-b border-slate-100">
+        <div className="flex items-center justify-between mb-4">
+          <Button variant="ghost" size="icon" onClick={() => router.back()} className="-ml-3 rounded-full hover:bg-slate-50">
+            <ChevronLeft className="w-6 h-6 text-slate-900" />
           </Button>
-          <h1 className="text-lg font-bold text-slate-900 tracking-tight">Cuenta de {tableName || `Mesa ${tableId}`}</h1>
+          <Badge className="bg-slate-900 text-white font-bold py-1 px-3 rounded-full border-none">
+            {tableName || `Mesa ${tableHash}`}
+          </Badge>
+          <div className="w-10"></div>
         </div>
-        <div className="text-center">
-          <p className="text-4xl font-extrabold text-slate-900">
-            € {grandTotal.toFixed(2)}
+        
+        <div className="text-center animate-in slide-in-from-top-4 duration-500">
+          <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-1">Total a pagar</p>
+          <p className="text-5xl font-black text-slate-900 tracking-tighter">
+            <span className="text-2xl align-top mr-1">{currency}</span>
+            {grandTotal.toFixed(2)}
           </p>
-          <p className="text-sm font-medium text-slate-500 mt-2">Total de la mesa</p>
         </div>
       </header>
 
-      <main className="flex-1 p-5 space-y-8 max-w-lg mx-auto w-full">
+      <main className="flex-1 px-6 pt-8 space-y-8 max-w-lg mx-auto w-full">
+        {/* Detalle de Productos */}
         <section className="space-y-4">
-          <Tabs defaultValue="part" onValueChange={(v) => setPaymentMode(v as "part" | "all")} className="w-full">
-            <TabsList className="grid w-full grid-cols-2 p-1 bg-slate-200/50 rounded-xl h-12">
-              <TabsTrigger 
-                value="part" 
-                className="rounded-lg font-medium text-sm data-[state=active]:bg-white data-[state=active]:text-slate-900 shadow-none transition-all"
+          <div className="flex items-center justify-between px-1">
+            <h2 className="text-[13px] font-black text-slate-400 uppercase tracking-widest">Resumen de la mesa</h2>
+          </div>
+          
+          <div className="bg-slate-50 rounded-[32px] p-2 space-y-1">
+            {orderItems.length > 0 ? orderItems.map((item, idx) => (
+              <div 
+                key={item.id} 
+                className="flex items-center justify-between p-5 bg-white rounded-[24px] border border-slate-100 shadow-sm"
               >
-                Pagar mi parte
-              </TabsTrigger>
-              <TabsTrigger 
-                value="all"
-                className="rounded-lg font-medium text-sm data-[state=active]:bg-white data-[state=active]:text-slate-900 shadow-none transition-all"
-              >
-                Pagar todo
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
-        </section>
-
-        <section className="space-y-3">
-          <h2 className="text-xs font-bold text-slate-500 uppercase tracking-widest pl-1">Detalle del consumo</h2>
-          <Card className="border-slate-200/60 shadow-sm overflow-hidden rounded-2xl bg-white">
-            <div className="divide-y divide-slate-100">
-              {orderItems.length > 0 ? orderItems.map(item => {
-                const isChecked = paymentMode === "all" || selectedIds.includes(item.id);
-                const isOwnItem = item.guestId === guestId;
-                
-                return (
-                  <div 
-                    key={item.id} 
-                    className={`flex items-start gap-4 p-4 transition-all duration-200 ${isChecked ? 'bg-white' : 'bg-slate-50/50'} ${paymentMode === "part" ? "cursor-pointer active:scale-[0.99]" : ""}`}
-                    onClick={() => paymentMode === "part" && toggleItem(item.id)}
-                  >
-                    <Checkbox 
-                      id={`chk-${item.id}`}
-                      checked={isChecked}
-                      disabled={paymentMode === "all"}
-                      className={`mt-1 h-5 w-5 rounded-[6px] transition-colors ${isChecked ? 'data-[state=checked]:bg-slate-900 data-[state=checked]:border-slate-900' : 'border-slate-300'}`}
-                      onCheckedChange={() => toggleItem(item.id)}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex justify-between items-start gap-2">
-                        <p className={`font-semibold text-[15px] truncate pr-2 transition-colors ${isChecked ? 'text-slate-900' : 'text-slate-500'}`}>
-                          {item.quantity}x {item.name}
-                        </p>
-                        <p className={`font-bold text-[15px] shrink-0 transition-colors ${isChecked ? 'text-slate-900' : 'text-slate-500'}`}>
-                          € {(Number(item.price) * item.quantity).toFixed(2)}
-                        </p>
-                      </div>
-                      <p className={`text-[13px] font-medium mt-1 transition-colors ${isOwnItem ? 'text-blue-600' : 'text-slate-400'}`}>
-                        {isOwnItem ? 'Tu pedido' : `Pedido por ${item.guestName}`}
-                      </p>
-                    </div>
-                  </div>
-                );
-              }) : (
-                <div className="p-10 text-center text-slate-400 font-medium">
-                  No hay pedidos registrados aún
+                <div className="flex-1 min-w-0 pr-4">
+                  <p className="font-bold text-slate-900 text-sm md:text-base truncate">
+                    {item.quantity}x {item.name}
+                  </p>
+                  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-tighter mt-1">
+                    Ordenado por {item.guestName}
+                  </p>
                 </div>
-              )}
-            </div>
-          </Card>
-        </section>
-
-        <section className="space-y-3">
-          <h2 className="text-xs font-bold text-slate-500 uppercase tracking-widest pl-1">¿Cómo pagarás?</h2>
-          <div className="grid grid-cols-2 gap-2">
-            <Button 
-              type="button"
-              variant={paymentMethod === "card" ? "default" : "outline"} 
-              className={`h-12 text-sm rounded-md transition-all duration-200 ${paymentMethod === "card" ? 'bg-slate-900 text-white shadow-md' : 'bg-white border-slate-200 text-slate-600'}`}
-              onClick={() => setPaymentMethod("card")}
-            >
-              <CreditCard className={`w-5 h-5 mr-2 ${paymentMethod === "card" ? "text-slate-300" : "text-slate-400"}`} />
-              Tarjeta
-            </Button>
-            <Button 
-              type="button"
-              variant={paymentMethod === "cash" ? "default" : "outline"} 
-              className={`h-12 text-sm rounded-md transition-all duration-200 ${paymentMethod === "cash" ? 'bg-slate-900 text-white shadow-md' : 'bg-white border-slate-200 text-slate-600'}`}
-              onClick={() => setPaymentMethod("cash")}
-            >
-              <Banknote className={`w-5 h-5 mr-2 ${paymentMethod === "cash" ? "text-slate-300" : "text-slate-400"}`} />
-              Efectivo
-            </Button>
+                <p className="font-black text-slate-900 text-sm md:text-base shrink-0">
+                  {currency} {(Number(item.price) * item.quantity).toFixed(2)}
+                </p>
+              </div>
+            )) : (
+              <div className="p-16 text-center">
+                <Receipt className="w-10 h-10 text-slate-200 mx-auto mb-3" />
+                <p className="text-slate-400 font-bold text-sm">No hay consumos registrados</p>
+              </div>
+            )}
           </div>
         </section>
 
-        <section>
-          <Accordion type="single" collapsible className="w-full bg-white rounded-2xl border border-slate-200 px-4 shadow-sm">
-            <AccordionItem value="billing" className="border-none">
-              <AccordionTrigger className="hover:no-underline text-sm font-semibold text-slate-700 py-5">
-                <div className="flex items-center gap-3 px-1">
-                  <Receipt className="size-4.5 text-slate-400" />
-                  <span>¿Necesitas factura?</span>
-                </div>
-              </AccordionTrigger>
-              <AccordionContent>
-                <div className="space-y-4 pt-1 pb-5 px-1">
-                  <div className="w-full flex flex-col gap-2 px-1">
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Nombre / Razón Social</label>
-                    <Input 
-                      placeholder="Ej. Juan Pérez"
-                      value={billingName}
-                      onChange={(e) => setBillingName(e.target.value)}
-                    />
-                  </div>
-                  <div className="w-full flex flex-col gap-2 px-1">
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">NID / CIF / RUC</label>
-                    <Input 
-                      placeholder="Documento de identidad"
-                      value={billingId}
-                      onChange={(e) => setBillingId(e.target.value)}
-                    />
-                  </div>
-                </div>
-              </AccordionContent>
-            </AccordionItem>
-          </Accordion>
-        </section>
+        <div className="bg-blue-50/50 p-6 rounded-3xl border border-blue-100 flex items-start gap-4">
+          <div className="bg-blue-500 p-2 rounded-xl shrink-0">
+            <Bell className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <p className="font-bold text-blue-900 text-sm mb-1">¿Cómo pagar?</p>
+            <p className="text-blue-700/70 text-xs leading-relaxed">
+              Al presionar el botón de abajo, avisaremos al mozo que deseas pagar. Él vendrá a tu mesa para procesar el pago.
+            </p>
+          </div>
+        </div>
+
+        <div className="h-10"></div>
       </main>
 
-      <div className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-xl border-t border-slate-200 pt-4 px-5 pb-8 z-20">
-        <div className="max-w-lg mx-auto flex flex-col gap-4">
-          <div className="flex justify-between items-center px-1">
-            <span className="text-slate-500 font-semibold text-sm uppercase tracking-wider">Monto a cancelar</span>
-            <span className="text-2xl font-extrabold text-slate-900">€ {totalToPay.toFixed(2)}</span>
-          </div>
+      {/* Footer Fijo Simplificado */}
+      <div className="fixed bottom-0 left-0 right-0 p-6 z-20">
+        <div className="max-w-lg mx-auto">
           <Button 
             size="lg" 
-            className="w-full h-14 rounded-full text-lg font-bold shadow-lg shadow-slate-900/10 active:scale-[0.98] transition-all bg-slate-900 hover:bg-slate-800 text-white disabled:opacity-50"
-            onClick={handleCheckoutRequest}
-            disabled={isSubmitting || totalToPay === 0}
+            className={cn(
+              "w-full h-16 rounded-full font-black text-lg uppercase tracking-widest transition-all duration-300 shadow-2xl group",
+              grandTotal === 0 ? "bg-slate-100 text-slate-300" : "bg-slate-900 text-white hover:bg-slate-800"
+            )}
+            onClick={handleCallWaiterToPay}
+            disabled={isSubmitting || grandTotal === 0}
           >
             {isSubmitting ? (
-              <span className="flex items-center gap-2">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Avisando...
+              <Loader2 className="h-6 w-6 animate-spin" />
+            ) : (
+              <span className="flex items-center gap-3">
+                Pedir la Cuenta al Mozo
+                <ArrowRight className="w-6 h-6 group-hover:translate-x-1 transition-transform" />
               </span>
-            ) : "Confirmar y llamar mozo"}
+            )}
           </Button>
         </div>
       </div>

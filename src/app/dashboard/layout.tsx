@@ -7,12 +7,12 @@ import {
   BookOpen,
   LayoutGrid,
   Users,
-  // Receipt,
   Settings,
   Store,
   LogOut,
   Menu,
-  Tags
+  Tags,
+  Receipt
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -39,7 +39,7 @@ const navigation = [
   { name: "Categorías", href: "/dashboard/categories", icon: Tags },
   { name: "Mesas", href: "/dashboard/tables", icon: LayoutGrid },
   { name: "Personal", href: "/dashboard/staff", icon: Users },
-  // { name: "Facturación", href: "/dashboard/invoices", icon: Receipt },
+  { name: "Facturación", href: "/dashboard/invoices", icon: Receipt },
   { name: "Configuración", href: "/dashboard/settings", icon: Settings },
 ];
 

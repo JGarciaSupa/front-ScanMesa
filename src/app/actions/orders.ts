@@ -5,7 +5,7 @@ import getTenantSlugServer from "@/utils/getTenantSlugServer";
 
 const API_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000";
 
-export async function closeSessionAction(sessionId: number) {
+export async function closeSessionAction(sessionId: number, paymentData?: { payerGuestId?: number, itemIds?: number[] }) {
   try {
     const slug = await getTenantSlugServer();
     const cookieStore = await cookies();
@@ -14,9 +14,11 @@ export async function closeSessionAction(sessionId: number) {
     const res = await fetch(`${API_URL}/tenant/orders/session/${sessionId}/close`, {
       method: "POST",
       headers: {
+        "Content-Type": "application/json",
         "x-schema-tenant": slug,
         ...(token ? { "Authorization": `Bearer ${token}` } : {})
       },
+      body: paymentData ? JSON.stringify(paymentData) : undefined
     });
 
     return await res.json();
