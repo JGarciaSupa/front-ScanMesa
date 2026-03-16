@@ -238,35 +238,18 @@ export default function DashboardLayout({
             </div>
 
             <div className="flex items-center gap-x-4 lg:gap-x-6">
-              <div className="hidden sm:block">
-                <Select defaultValue="today">
-                  <SelectTrigger className="w-[150px] h-9 bg-slate-50 border-slate-200 focus:ring-slate-400">
-                    <SelectValue placeholder="Periodo" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="today">Hoy</SelectItem>
-                    <SelectItem value="week">Esta Semana</SelectItem>
-                    <SelectItem value="month">Este Mes</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Separator */}
-              <div
-                className="hidden sm:block h-6 w-px bg-slate-200"
-                aria-hidden="true"
-              />
-
               {/* Profile */}
-              <Avatar className="h-9 w-9 cursor-pointer ring-2 ring-transparent hover:ring-slate-200 transition-all">
-                <AvatarImage
-                  src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.name || "Admin"}`}
-                  alt="Admin Avatar"
-                />
-                <AvatarFallback className="bg-slate-900 text-white text-xs font-medium">
-                  {user ? getInitials(user.name) : "AD"}
-                </AvatarFallback>
-              </Avatar>
+              <Link href="/dashboard/profile">
+                <Avatar className="h-9 w-9 cursor-pointer ring-2 ring-transparent hover:ring-slate-200 transition-all">
+                  <AvatarImage
+                    src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.name || "Admin"}`}
+                    alt="Admin Avatar"
+                  />
+                  <AvatarFallback className="bg-slate-900 text-white text-xs font-medium">
+                    {user ? getInitials(user.name) : "AD"}
+                  </AvatarFallback>
+                </Avatar>
+              </Link>
             </div>
           </header>
 
