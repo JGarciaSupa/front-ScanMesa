@@ -10,19 +10,13 @@ import {
   WifiOff,
   AlertCircle,
   Bell,
-  BellOff,
-  MessageSquare
+  BellOff
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { 
-  Popover, 
-  PopoverContent, 
-  PopoverTrigger 
-} from "@/components/ui/popover";
 import { 
   Dialog, 
   DialogContent, 
@@ -81,12 +75,10 @@ export default function PosPage() {
   const [isConnected, setIsConnected] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [showNotificationPrompt, setShowNotificationPrompt] = useState(false);
-  const [permissionState, setPermissionState] = useState<NotificationPermission>("default");
+  const [permissionState, setPermissionState] = useState<NotificationPermission>("default");  
   const socketRef = useRef<WebSocket | null>(null);
   const selectedSessionIdRef = useRef<number | null>(null);
-  const alerts = usePosStore((state) => state.alerts);
   const addAlert = usePosStore((state) => state.addAlert);
-  const unreadCount = alerts.filter(a => !a.isRead).length;
 
   useEffect(() => {
     if (typeof window !== "undefined" && "Notification" in window) {
@@ -382,68 +374,6 @@ export default function PosPage() {
             </div>
           </div>
 
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" size="icon" className="relative h-12 w-12 rounded-2xl border-2 hover:bg-slate-50 transition-all">
-                <Bell className="h-5 w-5" />
-                {unreadCount > 0 && (
-                  <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-600 text-[10px] font-bold text-white ring-2 ring-white animate-bounce">
-                    {unreadCount}
-                  </span>
-                )}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-80 p-0 rounded-[24px] border-none shadow-2xl overflow-hidden" align="end">
-              <div className="bg-slate-900 p-4 text-white flex justify-between items-center">
-                <span className="text-xs font-black uppercase tracking-widest">Alertas Recientes</span>
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  className="h-7 text-[10px] font-bold hover:bg-white/10 text-white/60 hover:text-white"
-                  onClick={() => usePosStore.getState().clearAlerts()}
-                >
-                  Limpiar
-                </Button>
-              </div>
-              <ScrollArea className="h-[350px]">
-                <div className="p-2">
-                  {alerts.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-10 text-center">
-                      <div className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center mb-3">
-                        <MessageSquare className="w-6 h-6 text-slate-300" />
-                      </div>
-                      <p className="text-xs font-bold text-slate-400">Sin alertas pendientes</p>
-                    </div>
-                  ) : (
-                    alerts.map((alert) => (
-                      <div 
-                        key={alert.id} 
-                        className={cn(
-                          "p-4 rounded-2xl mb-1 transition-all border border-transparent hover:border-slate-100",
-                          !alert.isRead ? "bg-slate-50" : "opacity-60"
-                        )}
-                        onClick={() => usePosStore.getState().markAsRead(alert.id)}
-                      >
-                        <div className="flex justify-between items-start gap-2 mb-1">
-                          <span className={cn(
-                            "text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full",
-                            alert.type === 'success' ? "bg-emerald-100 text-emerald-700" : 
-                            alert.type === 'warning' ? "bg-amber-100 text-amber-700" : "bg-blue-100 text-blue-700"
-                          )}>
-                            {alert.title}
-                          </span>
-                          <span className="text-[9px] text-slate-400 font-medium">
-                            {new Date(alert.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          </span>
-                        </div>
-                        <p className="text-xs font-medium text-slate-600 leading-relaxed">{alert.description}</p>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </ScrollArea>
-            </PopoverContent>
-          </Popover>
         </div>
       </div>
 
