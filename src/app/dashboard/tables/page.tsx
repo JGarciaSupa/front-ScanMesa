@@ -342,8 +342,8 @@ export default function TablesPage() {
                   </div>
 
                   {/* Botones de acción inferiores */}
-                  <div className="grid grid-cols-2 gap-2 mt-auto">
-                    <Button 
+                  <div className="flex justify-center">
+                    {/* <Button 
                       variant="outline" 
                       size="sm" 
                       className={cn(
@@ -354,12 +354,12 @@ export default function TablesPage() {
                     >
                       <Eye className="w-3.5 h-3.5 mr-1.5" />
                       Ver
-                    </Button>
+                    </Button> */}
                     <Button 
                       variant="outline" 
                       size="sm" 
                       className={cn(
-                        "h-8 text-xs bg-white/60 hover:bg-white shadow-none",
+                        "min-w-1/2 h-8 text-xs bg-white/60 hover:bg-white shadow-none",
                         isFree ? "border-emerald-200" : "border-red-200"
                       )}
                       onClick={() => setQrModalTable(table)}
@@ -459,7 +459,7 @@ export default function TablesPage() {
 
               <div className="space-y-1 mb-4 w-full text-center">
                 <p className="text-[10px] font-bold text-neutral-700">📱 Ordena desde tu celular</p>
-                <p className="text-[10px] font-bold text-neutral-700">🍔 Sin esperar al mesero</p>
+                <p className="text-[10px] font-bold text-neutral-700">🍔 Sin esperar al camarero</p>
               </div>
 
               <div className="w-full pt-3 border-t border-neutral-100 text-center">
