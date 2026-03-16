@@ -10,6 +10,7 @@ export default function HomePage() {
     const tenantSlug = subDomain.replace('-', '_');
     
     console.log("------- DEBUG TENANT (CLIENTE) -------");
+    console.log("URL:", window.location.href);
     console.log("Host:", host);
     console.log("Tenant Slug:", tenantSlug);
 
