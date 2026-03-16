@@ -1,37 +1,16 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Clock, MapPin, ShoppingBag, Plus, Minus, Trash2, CheckCircle2, Share2, Receipt, AlertCircle } from "lucide-react";
-import Link from "next/link";
+import { CheckCircle2, AlertCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetFooter, SheetDescription } from "@/components/ui/sheet";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
-import { Card } from "@/components/ui/card";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
-import ButtonWaiterdCalled from "@/components/qr/ButtonWaiterdCalled";
-import { cn } from "@/lib/utils";
+import { Product, CartItem } from "./menu/types";
 
-type Product = {
-  id: number;
-  categoryId: number;
-  name: string;
-  price: number;
-  description: string;
-  imageUrl: string;
-  trackStock: boolean;
-  currentStock: number;
-  isAvailable: boolean;
-};
-
-type CartItem = {
-  product: Product;
-  quantity: number;
-};
+import WelcomeModal from "./menu/WelcomeModal";
+import MenuHeader from "./menu/MenuHeader";
+import CategoryTabs from "./menu/CategoryTabs";
+import ProductCard from "./menu/ProductCard";
+import CartDrawer from "./menu/CartDrawer";
+import ProductDetailModal from "./menu/ProductDetailModal";
 
 interface ClientMenuProps {
   tableId: string;
@@ -110,7 +89,6 @@ export default function ClientMenu({ tableId, tenantData }: ClientMenuProps) {
             setSessionCode(result.data.code);
             setSessionId(result.data.id);
 
-            // Recuperar sesión persistida si coincide con la sesión activa de la mesa
             const savedSession = localStorage.getItem(`table_session_${tableId}`);
             if (savedSession) {
               const { guestId: savedGuestId, guestName: savedGuestName, sessionId: savedSessionId } = JSON.parse(savedSession);
@@ -120,7 +98,6 @@ export default function ClientMenu({ tableId, tenantData }: ClientMenuProps) {
               }
             }
           } else {
-            // Mesa está libre
             localStorage.removeItem(`table_session_${tableId}`);
             setIsTableOccupied(false);
             setGuestId(null);
@@ -146,11 +123,9 @@ export default function ClientMenu({ tableId, tenantData }: ClientMenuProps) {
         setIsCodePreFilled(true);
       }
     }
-  }, [tableId]);
+  }, [tableId, router]);
 
-  // WebSocket para actualizaciones en tiempo real (Cierre de mesa)
   useEffect(() => {
-    // Solo conectamos si el cliente tiene una sesión activa
     if (!guestName || !sessionId) return;
 
     let mounted = true;
@@ -161,25 +136,17 @@ export default function ClientMenu({ tableId, tenantData }: ClientMenuProps) {
       try {
         const tenantSlug = getTenantSlug();
         const apiUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000";
-        // Convertimos http/https a ws/wss
         const wsUrl = new URL(`${apiUrl.replace(/^http/, 'ws')}/ws`);
         wsUrl.searchParams.set('tenantId', tenantSlug);
         wsUrl.searchParams.set('isGuest', 'true');
 
         socket = new WebSocket(wsUrl.toString());
 
-        socket.onopen = () => {
-          // Conectado para recibir actualizaciones de mesa
-        };
-
         socket.onmessage = (event) => {
           try {
             const { event: eventName, data } = JSON.parse(event.data);
             
-            // Si la sesión actual es cerrada por el mesero
             if (eventName === 'session:closed' && data.sessionId === sessionId) {
-              
-              // Limpiamos todo para forzar al cliente a poner su nombre de nuevo
               localStorage.removeItem(`table_session_${tableId}`);
               setGuestName("");
               setGuestId(null);
@@ -194,13 +161,10 @@ export default function ClientMenu({ tableId, tenantData }: ClientMenuProps) {
               }
             }
 
-            // Si se abre una nueva sesión (por si acaso alguien más la abre)
             if (eventName === 'table:opened' && data.tableId === (internalTableId || parseInt(tableId))) {
-                // Podríamos refrescar el estado de ocupación
                 setIsTableOccupied(true);
             }
 
-            // --- ACTUALIZACIONES DE PRODUCTOS EN TIEMPO REAL ---
             if (eventName === 'product:created') {
               setProducts(prev => [...prev, data]);
             }
@@ -218,9 +182,8 @@ export default function ClientMenu({ tableId, tenantData }: ClientMenuProps) {
         };
 
         socket.onclose = () => {
-          // Desconectado
           if (mounted) {
-            reconnectTimeout = setTimeout(initSocket, 5000); // Reintentar en 5 seg
+            reconnectTimeout = setTimeout(initSocket, 5000);
           }
         };
 
@@ -239,7 +202,7 @@ export default function ClientMenu({ tableId, tenantData }: ClientMenuProps) {
       clearTimeout(reconnectTimeout);
       if (socket) socket.close();
     };
-  }, [guestName, sessionId, tableId, internalTableId]);
+  }, [guestName, sessionId, tableId, internalTableId, guestId]);
 
   if (isSessionChecking) {
     return (
@@ -259,7 +222,6 @@ export default function ClientMenu({ tableId, tenantData }: ClientMenuProps) {
       try {
         const tenantSlug = getTenantSlug();
         if (!isTableOccupied) {
-          // Abrir nueva mesa
           const generatedCode = Math.floor(100000 + Math.random() * 900000).toString();
           const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/tenant/orders/session/open`, {
             method: 'POST',
@@ -284,7 +246,6 @@ export default function ClientMenu({ tableId, tenantData }: ClientMenuProps) {
             setSessionId(newSessionId);
             setSessionCode(result.data.session.code);
             
-            // Persistir sesión
             localStorage.setItem(`table_session_${tableId}`, JSON.stringify({
               guestId: newGuestId,
               guestName: newGuestName,
@@ -297,7 +258,6 @@ export default function ClientMenu({ tableId, tenantData }: ClientMenuProps) {
             showToast("Error", "error");
           }
         } else {
-          // Unirse a mesa existente
           if (codeInput.trim().length < 6 && !isCodePreFilled) {
             showToast("Código incompleto", "error");
             return;
@@ -322,7 +282,6 @@ export default function ClientMenu({ tableId, tenantData }: ClientMenuProps) {
             setGuestName(newGuestName);
             setGuestId(newGuestId);
 
-            // Persistir sesión
             localStorage.setItem(`table_session_${tableId}`, JSON.stringify({
               guestId: newGuestId,
               guestName: newGuestName,
@@ -477,437 +436,77 @@ export default function ClientMenu({ tableId, tenantData }: ClientMenuProps) {
         </div>
       )}
 
-      {/* Welcome Modal */}
-      <Dialog open={isModalOpen}>
-        {/* Usamos onOpenChange vacío y pointer-events-none en la capa base suele no ser suficiente, pero no renderizamos el botón Close 
-            El usuario NO puede cerrarlo a menos que llene su nombre. */}
-        <DialogContent 
-          className="sm:max-w-md w-11/12 rounded-xl"
-          onInteractOutside={(e) => e.preventDefault()}
-          onEscapeKeyDown={(e) => e.preventDefault()}
-          showCloseButton={false}
-        >
-          <DialogHeader>
-            <DialogTitle className="text-xl font-bold text-center">¡Bienvenido a la {tableName || `Mesa ${tableId}`}!</DialogTitle>
-            <DialogDescription className="text-center pt-2 pb-4 text-base">
-              {isTableOccupied 
-                ? isCodePreFilled 
-                  ? "Te invitó alguien a esta mesa. Escribe tu nombre para entrar."
-                  : "Esta mesa ya está ocupada. Ingresa tu nombre y el código de invitación que te enviaron."
-                : "Parece que eres el primero aquí. Escribe tu nombre para abrir la mesa."}
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handleJoin} className="flex flex-col gap-5">
-            <Input
-              placeholder="Tu nombre (Ej. Ana)"
-              value={nameInput}
-              onChange={(e) => setNameInput(e.target.value)}
-              className="h-12 text-lg rounded-xl"
-              autoFocus
-            />
-            
-            {isTableOccupied && !isCodePreFilled && (
-              <div className="flex flex-col items-center justify-center gap-3">
-                <span className="text-sm font-medium text-zinc-500">Código de mesa (6 dígitos)</span>
-                <InputOTP 
-                  maxLength={6} 
-                  value={codeInput}
-                  onChange={(val) => setCodeInput(val)}
-                  required
-                >
-                  <InputOTPGroup className="gap-2">
-                    <InputOTPSlot index={0} className="w-10 h-12 text-lg border border-zinc-200 font-bold rounded-xl!" />
-                    <InputOTPSlot index={1} className="w-10 h-12 text-lg border border-zinc-200 font-bold rounded-xl!" />
-                    <InputOTPSlot index={2} className="w-10 h-12 text-lg border border-zinc-200 font-bold rounded-xl!" />
-                    <InputOTPSlot index={3} className="w-10 h-12 text-lg border border-zinc-200 font-bold rounded-xl!" />
-                    <InputOTPSlot index={4} className="w-10 h-12 text-lg border border-zinc-200 font-bold rounded-xl!" />
-                    <InputOTPSlot index={5} className="w-10 h-12 text-lg border border-zinc-200 font-bold rounded-xl!" />
-                  </InputOTPGroup>
-                </InputOTP>
-              </div>
-            )}
+      {/** Modal de bienvenida que solicita el nombre del cliente y el código de mesa si es necesario. */}
+      <WelcomeModal 
+        isOpen={isModalOpen}
+        tableName={tableName}
+        tableId={tableId}
+        isTableOccupied={isTableOccupied}
+        isCodePreFilled={isCodePreFilled}
+        nameInput={nameInput}
+        setNameInput={setNameInput}
+        codeInput={codeInput}
+        setCodeInput={setCodeInput}
+        isLoading={isLoading}
+        handleJoin={handleJoin}
+      />
 
-            {isTableOccupied && isCodePreFilled && (
-              <div className="bg-green-50 text-green-700 p-3 rounded-xl flex items-center justify-center gap-2 text-sm font-medium border border-green-200/50">
-                <CheckCircle2 className="w-4 h-4 text-green-600" />
-                Invitación válida detectada
-              </div>
-            )}
+      {/** Encabezado del menú que muestra el banner, logo y nombre del restaurante, junto con info de la mesa. */}
+      <MenuHeader 
+        bannerUrl={tenantData.info.bannerUrl}
+        logoUrl={tenantData.info.logoUrl}
+        name={tenantData.info.name}
+        tableId={tableId}
+        tableName={tableName}
+        sessionCode={sessionCode}
+        handleShare={handleShare}
+        internalTableId={internalTableId}
+      />
 
-            <Button
-              type="submit"
-              disabled={isLoading || !nameInput.trim() || (isTableOccupied && !isCodePreFilled && codeInput.length < 6)}
-              className="h-12 rounded-xl text-lg font-semibold w-full mt-2"
-            >
-              {isLoading ? "Procesando..." : (isTableOccupied ? "Unirse a la mesa" : "Abrir nueva mesa")}
-            </Button>
-            
-            {/* Simulación eliminada para producción */}
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Principal Header */}
-      <header className="relative w-full h-56 md:h-64 lg:h-80 overflow-hidden bg-black/80">
-        <img
-          src={tenantData.info.bannerUrl || ""}
-          alt="Restaurant cover"
-          className="absolute inset-0 w-full h-full object-cover opacity-60 mix-blend-overlay"
-        />
-        <div
-          className="absolute inset-0"
-          style={{ background: "linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.8) 100%)" }}
-        />
-        <div className="absolute top-4 left-0 right-0 px-4 flex flex-wrap items-center justify-between gap-2 z-10">
-          <Badge variant="secondary" className="bg-white/95 text-black border-0 font-bold whitespace-nowrap text-[10px] md:text-sm py-1 px-2">
-            📍 {tableName || `Mesa ${tableId}`} • {sessionCode}
-          </Badge>
-          
-          <div className="flex items-center gap-1.5 ml-auto">
-            <Button 
-              variant="secondary" 
-              size="icon" 
-              className="bg-white/95 hover:bg-white text-black h-8 w-8 rounded-full shrink-0 shadow-sm"
-              onClick={handleShare}
-            >
-              <Share2 className="w-4 h-4" />
-            </Button>
-            <Link href={`/qr/${tableId}/checkout`}>
-              <Button variant="secondary" size="sm" className="bg-white/95 hover:bg-white text-black border-0 font-bold h-8 px-3 rounded-full shadow-sm text-xs">
-                <Receipt className="w-3.5 h-3.5 mr-1" />
-                Cuenta
-              </Button>
-            </Link>
-            <ButtonWaiterdCalled tableId={internalTableId || parseInt(tableId)} />
-          </div>
-        </div>
-        <div className="absolute bottom-0 left-0 right-0 p-5 flex items-end gap-4 z-10">
-          <Avatar className="w-16 h-16 md:w-20 md:h-20 border-2 border-white/20 shadow-xl shrink-0 bg-white">
-            {tenantData.info.logoUrl ? (
-              <AvatarImage src={tenantData.info.logoUrl} alt="logo" className="object-cover" />
-            ) : (
-              <AvatarFallback className="text-2xl font-bold bg-zinc-900 text-white">
-                {tenantData.info.name[0]?.toUpperCase()}
-              </AvatarFallback>
-            )}
-          </Avatar>
-
-          <div className="pb-1">
-            <h1 className="text-2xl md:text-3xl font-extrabold text-white leading-tight drop-shadow-md">
-              {tenantData.info.name}
-            </h1>
-            <div className="flex items-center gap-2 mt-1.5 opacity-80">
-              <span className="text-white text-xs font-medium flex items-center gap-1 bg-black/30 py-0.5 rounded-full backdrop-blur-sm">
-                <Clock className="w-3.5 h-3.5" />
-                <span>Abierto · Cierra a las 23:30</span>
-              </span>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* Contenido interactivo: Categorías y Productos */}
-      <div className="sticky top-0 z-40 bg-[#FAF8F4]/95 backdrop-blur-md border-b border-stone-200/60 py-3">
-        <div className="max-w-7xl mx-auto">
-          <ScrollArea className="w-full">
-            <div className="flex w-max space-x-2 px-4 pb-2">
-              <Button
-                variant={selectedCategoryId === 0 ? "default" : "secondary"}
-                className={`rounded-full px-5 font-medium transition-all ${
-                  selectedCategoryId === 0 
-                  ? "bg-zinc-900 text-white shadow-md" 
-                  : "bg-white text-zinc-600 hover:bg-zinc-100 border border-stone-200"
-                }`}
-                onClick={() => setSelectedCategoryId(0)}
-              >
-                Todos
-              </Button>
-              {tenantData.categories.map((cat) => (
-                <Button
-                  key={cat.id}
-                  variant={selectedCategoryId === cat.id ? "default" : "secondary"}
-                  className={`rounded-full px-5 font-medium transition-all ${
-                    selectedCategoryId === cat.id 
-                    ? "bg-zinc-900 text-white shadow-md" 
-                    : "bg-white text-zinc-600 hover:bg-zinc-100 border border-stone-200"
-                  }`}
-                  onClick={() => setSelectedCategoryId(cat.id)}
-                >
-                  {cat.name}
-                </Button>
-              ))}
-            </div>
-            <ScrollBar orientation="horizontal" className="hidden" />
-          </ScrollArea>
-        </div>
-      </div>
+      {/** Selector de categorías con scroll horizontal. */}
+      <CategoryTabs 
+        categories={tenantData.categories}
+        selectedCategoryId={selectedCategoryId}
+        onSelectCategory={setSelectedCategoryId}
+      />
 
       <main className="px-4 py-6 max-w-7xl mx-auto">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {filteredProducts.map((product) => {
-            const isOutOfStock = product.trackStock && product.currentStock <= 0;
-            const isDisabled = !product.isAvailable || isOutOfStock;
-
-            return (
-              <Card 
-                key={product.id} 
-                className={cn(
-                  "py-0 overflow-hidden border-0 shadow-sm rounded-md bg-white hover:shadow-md transition-all relative cursor-pointer active:scale-[0.98]",
-                  isDisabled && "opacity-60 grayscale-[0.5] cursor-not-allowed"
-                )}
-                onClick={() => !isDisabled && addToCart(product)}
-              >
-                {isDisabled && (
-                  <div className="absolute inset-0 bg-white/20 backdrop-blur-[1px] flex items-center justify-center z-10 pointer-events-none">
-                    <Badge variant="destructive" className="px-3 py-1 text-xs font-bold uppercase tracking-wider shadow-sm border-none bg-red-600 text-white">
-                      Agotado
-                    </Badge>
-                  </div>
-                )}
-                <div className="flex flex-row h-28 md:h-40">
-                  <div 
-                    className="w-1/3 min-w-25 shrink-0 bg-stone-100 relative overflow-hidden group/img"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (!isDisabled) setSelectedDetailProduct(product);
-                    }}
-                  >
-                    <img
-                      src={product.imageUrl}
-                      alt={product.name}
-                      className="absolute inset-0 w-full h-full object-cover transition-transform"
-                      loading="lazy"
-                    />
-                  </div>
-                  <div className="flex-1 p-3 md:p-4 flex flex-col justify-between min-w-0">
-                    <div className="overflow-hidden">
-                      <div className="flex justify-between items-start gap-1">
-                        <h3 
-                          className="font-bold text-sm md:text-lg text-zinc-900 leading-tight mb-0.5 truncate flex-1 hover:underline decoration-zinc-300 underline-offset-2"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (!isDisabled) setSelectedDetailProduct(product);
-                          }}
-                        >
-                          {product.name}
-                        </h3>
-                        {product.trackStock && product.currentStock > 0 && product.currentStock <= 5 && (
-                          <span className="text-[9px] font-bold text-orange-600 bg-orange-50 px-1.5 py-0.5 rounded whitespace-nowrap">
-                            Últimos {product.currentStock}
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-[11px] md:text-sm text-zinc-500 line-clamp-2 leading-tight">
-                        {product.description}
-                      </p>
-                    </div>
-                    <div className="flex items-center justify-between mt-1">
-                      <span className="font-bold text-sm md:text-base text-zinc-900">
-                        {tenantData.info.currency || '€'}{Number(product.price).toFixed(2)}
-                      </span>
-                      <Button
-                        size="icon"
-                        variant="default"
-                        disabled={isDisabled}
-                        className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-zinc-900 hover:bg-zinc-800 shadow-sm transform active:scale-90 transition-transform disabled:bg-zinc-200 disabled:text-zinc-400"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          addToCart(product);
-                        }}
-                      >
-                        <Plus className="w-4 h-4 md:w-5 md:h-5 text-white" />
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </Card>
-            );
-          })}
+          {filteredProducts.map((product) => (
+            <ProductCard 
+              key={product.id}
+              product={product}
+              currency={tenantData.info.currency || '€'}
+              onAddToCart={addToCart}
+              onSelectDetail={setSelectedDetailProduct}
+            />
+          ))}
         </div>
       </main>
+      {/** Listado principal de productos (Tarjeta individual para mostrar la información básica). */}
 
-      {/* Floating Action / Slide-out Drawer para Carrito */}
-      <Sheet>
-        {cartTotalElements > 0 && (
-          <div className="fixed bottom-6 left-0 right-0 px-4 z-40 flex justify-center pointer-events-none">
-            <div className="w-full max-w-md pointer-events-auto">
-              <SheetTrigger asChild>
-                <Button className="w-full rounded-full h-14 bg-zinc-900 hover:bg-zinc-800 text-white shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-zinc-800 flex items-center justify-between px-6 text-lg font-semibold group transition-all">
-                  <div className="flex items-center gap-3">
-                    <div className="relative">
-                      <ShoppingBag className="w-6 h-6" />
-                      <span className="absolute -top-1 -right-2 bg-red-500 text-white text-[10px] w-5 h-5 flex flex-col items-center justify-center rounded-full border-2 border-zinc-900">
-                        {cartTotalElements}
-                      </span>
-                    </div>
-                    <span>Ver tu pedido</span>
-                  </div>
-                  <span>€{cartTotalPrice.toFixed(2)}</span>
-                </Button>
-              </SheetTrigger>
-            </div>
-          </div>
-        )}
+      <CartDrawer 
+        cart={cart}
+        guestName={guestName}
+        cartTotalElements={cartTotalElements}
+        cartTotalPrice={cartTotalPrice}
+        updateQuantity={updateQuantity}
+        removeFromCart={removeFromCart}
+        confirmOrder={confirmOrder}
+        tableId={tableId}
+        currency={tenantData.info.currency || '€'}
+      />
+      {/** Carrito de compras lateral/inferior que resume el pedido actual del cliente. */}
 
-        <SheetContent side="bottom" className="h-[90vh] md:h-auto md:max-h-[90vh] md:side-right md:w-100 flex flex-col rounded-t-3xl md:rounded-l-3xl p-0 bg-[#FAF8F4] overflow-hidden">
-            <SheetHeader className="p-6 pb-4 border-b border-stone-200/80 bg-white">
-              <SheetTitle className="text-2xl font-extrabold text-left flex items-center gap-2">
-                Tu pedido <span className="text-zinc-400 font-medium text-lg">·</span> <span className="text-zinc-500 font-medium text-lg">{guestName}</span>
-              </SheetTitle>
-              <SheetDescription className="sr-only">
-                Resumen de los productos que has añadido a tu carrito.
-              </SheetDescription>
-            </SheetHeader>
-            
-            <ScrollArea className="flex-1 p-6">
-              <ul className="flex flex-col gap-6">
-                {cart.map((item) => (
-                  <li key={item.product.id} className="flex gap-4">
-                    <div className="w-16 h-16 rounded-xl overflow-hidden bg-stone-100 shrink-0 shadow-sm border border-black/5">
-                      <img src={item.product.imageUrl} alt={item.product.name} className="w-full h-full object-cover" />
-                    </div>
-                    <div className="flex-1 flex flex-col justify-center">
-                      <div className="flex justify-between items-start">
-                        <span className="font-bold text-zinc-900 leading-tight">{item.product.name}</span>
-                        <span className="font-bold text-zinc-900 whitespace-nowrap ml-4">
-                          €{(item.product.price * item.quantity).toFixed(2)}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-4 mt-2">
-                        <div className="flex items-center bg-white border border-stone-200 rounded-full overflow-hidden shadow-sm">
-                          <button
-                            type="button"
-                            className="w-8 h-8 flex items-center justify-center text-zinc-500 hover:text-black hover:bg-stone-50 transition-colors active:bg-stone-100"
-                            onClick={() => updateQuantity(item.product.id, -1)}
-                          >
-                            <Minus className="w-3.5 h-3.5" />
-                          </button>
-                          <span className="w-6 text-center text-sm font-semibold select-none">{item.quantity}</span>
-                          <button
-                            type="button"
-                            className="w-8 h-8 flex items-center justify-center text-zinc-500 hover:text-black hover:bg-stone-50 transition-colors active:bg-stone-100"
-                            onClick={() => updateQuantity(item.product.id, 1)}
-                          >
-                            <Plus className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                        <button
-                          type="button"
-                          className="text-red-400 hover:text-red-600 transition-colors p-2 -ml-2 rounded-full hover:bg-red-50"
-                          onClick={() => removeFromCart(item.product.id)}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </ScrollArea>
-
-            <SheetFooter className="p-6 bg-white border-t border-stone-200/80 mt-auto shrink-0 shadow-[0_-4px_20px_rgba(0,0,0,0.03)]">
-              {cart.length > 0 ? (
-                <div className="w-full space-y-4">
-                  <div className="flex justify-between items-center text-zinc-500 font-medium">
-                    <span>Subtotal</span>
-                    <span>€{cartTotalPrice.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between items-center text-xl font-extrabold text-zinc-900 border-t border-stone-100 pt-3">
-                    <span>Total</span>
-                    <span>€{cartTotalPrice.toFixed(2)}</span>
-                  </div>
-                  <Button 
-                    className="w-full h-14 rounded-2xl text-lg font-bold bg-zinc-900 hover:bg-black text-white shadow-xl hover:shadow-2xl transition-all"
-                    onClick={confirmOrder}
-                  >
-                    Confirmar pedido
-                  </Button>
-                </div>
-              ) : (
-                <div className="w-full flex flex-col items-center gap-4 py-2">
-                  <span className="text-zinc-500 text-sm font-medium">No tienes items pendientes de enviar</span>
-                  <Link href={`/qr/${tableId}/checkout`} className="w-full">
-                    <Button className="w-full h-12 rounded-md text-lg font-bold" variant="default">
-                      Ver cuenta
-                    </Button>
-                  </Link>
-                </div>
-              )}
-            </SheetFooter>
-          </SheetContent>
-        </Sheet>
-
-      {/* Product Detail Modal */}
-      <Dialog open={!!selectedDetailProduct} onOpenChange={(open) => !open && setSelectedDetailProduct(null)}>
-        <DialogContent className="sm:max-w-[425px] p-0 overflow-hidden rounded-md border-none">
-          {selectedDetailProduct && (
-            <div className="flex flex-col">
-              <div className="relative h-64 w-full">
-                <img 
-                  src={selectedDetailProduct.imageUrl || ""} 
-                  alt={selectedDetailProduct.name}
-                  className="w-full h-full object-cover"
-                />
-                <Button 
-                  variant="secondary" 
-                  size="icon" 
-                  className="absolute top-4 right-4 rounded-full bg-black/50 hover:bg-black/70 text-white border-none h-8 w-8 hover:rounded-full"
-                  onClick={() => setSelectedDetailProduct(null)}
-                >
-                  <Plus className="w-4 h-4 rotate-45" />
-                </Button>
-              </div>
-              <div className="p-6 space-y-4">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <DialogTitle className="text-2xl font-bold text-zinc-900 leading-tight">
-                      {selectedDetailProduct.name}
-                    </DialogTitle>
-                    <Badge variant="secondary" className="mt-1">
-                      {tenantData.categories.find(c => c.id === selectedDetailProduct.categoryId)?.name}
-                    </Badge>
-                  </div>
-                  <span className="text-2xl font-bold text-zinc-900">
-                    {tenantData.info.currency || '€'}{Number(selectedDetailProduct.price).toFixed(2)}
-                  </span>
-                </div>
-                
-                <DialogDescription className="text-zinc-600 leading-relaxed text-base">
-                  {selectedDetailProduct.description || "Sin descripción disponible."}
-                </DialogDescription>
-
-                {selectedDetailProduct.trackStock && (
-                  <div className="flex items-center gap-2 text-sm font-medium">
-                    <span className={cn(
-                      "w-2 h-2 rounded-full",
-                      selectedDetailProduct.currentStock > 0 ? "bg-green-500" : "bg-red-500"
-                    )} />
-                    <span className="text-zinc-500">
-                      {selectedDetailProduct.currentStock > 0 
-                        ? `${selectedDetailProduct.currentStock} unidades disponibles`
-                        : "Agotado"}
-                    </span>
-                  </div>
-                )}
-
-                <div className="pt-4">
-                  <Button 
-                    className="w-full h-12 rounded-md font-bold bg-zinc-900 hover:bg-black text-white shadow-lg flex items-center justify-center gap-2"
-                    disabled={!selectedDetailProduct.isAvailable || (selectedDetailProduct.trackStock && selectedDetailProduct.currentStock <= 0)}
-                    onClick={() => {
-                      addToCart(selectedDetailProduct);
-                      setSelectedDetailProduct(null);
-                    }}
-                  >
-                    <Plus className="w-5 h-5" />
-                    Añadir al pedido
-                  </Button>
-                </div>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      <ProductDetailModal 
+        product={selectedDetailProduct}
+        isOpen={!!selectedDetailProduct}
+        onClose={() => setSelectedDetailProduct(null)}
+        onAddToCart={addToCart}
+        categories={tenantData.categories}
+        currency={tenantData.info.currency || '€'}
+      />
+      {/** Modal detallado que muestra toda la información de un producto seleccionado. */}
     </div>
   );
 }

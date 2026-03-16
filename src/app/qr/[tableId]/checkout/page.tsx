@@ -14,7 +14,7 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
+import { cn, formatPrice } from "@/lib/utils";
 
 interface OrderItem {
   id: number;
@@ -211,21 +211,21 @@ export default function CheckoutPage({ params }: { params: Promise<{ tableId: st
         
         <div className="bg-slate-50 border border-slate-100 p-6 rounded-3xl mb-8 w-full max-w-sm">
           <p className="text-slate-500 text-sm uppercase font-bold tracking-widest mb-1">Monto total</p>
-          <p className="text-4xl font-black text-slate-900 mb-4">{currency} {grandTotal.toFixed(2)}</p>
-          <div className="flex items-center justify-center gap-2 text-slate-600 bg-white border border-slate-200 py-3 px-4 rounded-2xl">
+          <p className="text-4xl font-black text-slate-900 mb-4">{formatPrice(grandTotal)}</p>
+          <div className="flex items-center justify-center gap-2 text-slate-600 bg-white border border-slate-200 py-3 px-4 rounded-md">
             <Clock className="w-4 h-4 text-amber-500" />
-            <span className="text-sm font-semibold">El mozo está en camino</span>
+            <span className="text-sm font-semibold">El camarero está en camino</span>
           </div>
         </div>
 
         <p className="text-slate-500 text-sm mb-10 max-w-xs mx-auto">
-          Por favor, espera un momento. El mozo traerá la cuenta a tu mesa.
+          Por favor, espera un momento. El camarero traerá la cuenta a tu mesa.
         </p>
 
         <Button 
           variant="outline" 
           size="lg"
-          className="w-full max-w-sm h-14 rounded-2xl border-2 border-slate-200 text-slate-900 font-black hover:bg-slate-50 active:scale-95 transition-all" 
+          className="w-full max-w-sm h-12 rounded-md border-2 border-slate-200 text-slate-900 font-black hover:bg-slate-50 active:scale-95 transition-all" 
           onClick={() => router.push(`/qr/${tableHash}`)}
         >
           Volver al menú
@@ -251,8 +251,7 @@ export default function CheckoutPage({ params }: { params: Promise<{ tableId: st
         <div className="text-center animate-in slide-in-from-top-4 duration-500">
           <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-1">Total a pagar</p>
           <p className="text-5xl font-black text-slate-900 tracking-tighter">
-            <span className="text-2xl align-top mr-1">{currency}</span>
-            {grandTotal.toFixed(2)}
+            {formatPrice(grandTotal)}
           </p>
         </div>
       </header>
@@ -279,7 +278,7 @@ export default function CheckoutPage({ params }: { params: Promise<{ tableId: st
                   </p>
                 </div>
                 <p className="font-black text-slate-900 text-sm md:text-base shrink-0">
-                  {currency} {(Number(item.price) * item.quantity).toFixed(2)}
+                  {formatPrice(Number(item.price) * item.quantity)}
                 </p>
               </div>
             )) : (
@@ -312,7 +311,7 @@ export default function CheckoutPage({ params }: { params: Promise<{ tableId: st
           <Button 
             size="lg" 
             className={cn(
-              "w-full h-16 rounded-full font-black text-lg uppercase tracking-widest transition-all duration-300 shadow-2xl group",
+              "w-full h-12 rounded-md font-black uppercase tracking-widest shadow-2xl",
               grandTotal === 0 ? "bg-slate-100 text-slate-300" : "bg-slate-900 text-white hover:bg-slate-800"
             )}
             onClick={handleCallWaiterToPay}
@@ -322,8 +321,7 @@ export default function CheckoutPage({ params }: { params: Promise<{ tableId: st
               <Loader2 className="h-6 w-6 animate-spin" />
             ) : (
               <span className="flex items-center gap-3">
-                Pedir la Cuenta al Mozo
-                <ArrowRight className="w-6 h-6 group-hover:translate-x-1 transition-transform" />
+                Pedir la cuenta al camarero
               </span>
             )}
           </Button>

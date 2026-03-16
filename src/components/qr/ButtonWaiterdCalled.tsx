@@ -60,7 +60,7 @@ export default function ButtonWaiterdCalled({ tableId }: { tableId: number }) {
       )}
     >
       <Bell className="w-3.5 h-3.5 mr-1.5" />
-      {waiterCalled ? "¡En camino! 🛎" : isLoading ? "Llamando..." : "Llamar Mozo"}
+      {waiterCalled ? "¡En camino!" : isLoading ? "Llamando..." : "Llamar Camarero"}
     </Button>
   );
 }

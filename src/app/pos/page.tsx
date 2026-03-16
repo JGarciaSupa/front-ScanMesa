@@ -23,7 +23,6 @@ import {
   PopoverContent, 
   PopoverTrigger 
 } from "@/components/ui/popover";
-import { Separator } from "@/components/ui/separator";
 import { 
   Dialog, 
   DialogContent, 
@@ -33,7 +32,7 @@ import {
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
+import { cn, formatPrice } from "@/lib/utils";
 import { getPosTablesAction } from "@/app/actions/pos";
 import { closeSessionAction, getSessionItemsAction, markItemServedAction, markOrderCompleteAction, resolveWaiterCallAction } from "@/app/actions/orders";
 import { getSocketConfigAction } from "@/app/actions/socket-config";
@@ -241,8 +240,8 @@ export default function PosPage() {
 
           if (eventName === 'waiter:called') {
             toast.warning(`¡Llamada de mozo!`, { description: `Mesa ${data.tableId}: ${data.reason}`, duration: 10000 });
-            sendPushNotification("¡Llamada de Mozo!", `Mesa ${data.tableId}: ${data.reason}`);
-            addAlert({ title: "¡Llamada de Mozo!", description: `Mesa ${data.tableId}: ${data.reason}`, type: "warning" });
+            sendPushNotification("¡Llamada de Camarero!", `Mesa ${data.tableId}: ${data.reason}`);
+            addAlert({ title: "¡Llamada de Camarero!", description: `Mesa ${data.tableId}: ${data.reason}`, type: "warning" });
           }
 
           if (eventName === 'checkout:requested') {
@@ -492,7 +491,7 @@ export default function PosPage() {
       <Dialog open={!!selectedTable} onOpenChange={(open) => !open && setSelectedTable(null)}>
         <DialogContent className="sm:max-w-[450px] p-0 overflow-hidden rounded-[32px] border-none shadow-2xl max-h-[96vh] flex flex-col">
           <DialogHeader className={cn(
-            "p-8 text-white pb-6 flex-shrink-0",
+            "p-8 text-white pb-6 shrink-0",
             selectedTable?.status === "occupied" ? "bg-red-600" : "bg-emerald-600"
           )}>
             <DialogTitle className="text-3xl font-black uppercase tracking-tighter">Mesa {selectedTable?.name}</DialogTitle>
@@ -533,7 +532,7 @@ export default function PosPage() {
 
                   <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100">
                     <span className="text-muted-foreground font-black text-[10px] uppercase tracking-widest block mb-1">Total acumulado:</span>
-                    <span className="text-4xl font-black tracking-tighter text-slate-900 block">€{grandTotal.toFixed(2)}</span>
+                    <span className="text-4xl font-black tracking-tighter text-slate-900 block">{formatPrice(grandTotal)}</span>
                   </div>
 
                   {loadingItems ? (
@@ -544,7 +543,7 @@ export default function PosPage() {
                         <div key={id} className="space-y-3">
                           <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-2 flex justify-between">
                             {diner.name}
-                            <span className="text-slate-900">€{diner.items.reduce((s, i) => s + (i.price * i.quantity), 0).toFixed(2)}</span>
+                            <span className="text-slate-900">{formatPrice(diner.items.reduce((s, i) => s + (i.price * i.quantity), 0))}</span>
                           </h4>
                           <ul className="space-y-3">
                             {diner.items.map(item => (
@@ -564,7 +563,7 @@ export default function PosPage() {
                                     </span>
                                   )}
                                 </div>
-                                <span className="font-black text-slate-900 text-sm">€{(item.price * item.quantity).toFixed(2)}</span>
+                                <span className="font-black text-slate-900 text-sm">{formatPrice(item.price * item.quantity)}</span>
                               </li>
                             ))}
                           </ul>
@@ -612,7 +611,7 @@ export default function PosPage() {
 
             <div className="bg-slate-900 p-6 rounded-[24px] text-white flex justify-between items-center shadow-lg shadow-slate-200">
               <span className="text-[10px] font-black uppercase tracking-widest opacity-60">Total a cobrar</span>
-              <span className="text-3xl font-black tracking-tighter">€{grandTotal.toFixed(2)}</span>
+              <span className="text-3xl font-black tracking-tighter">{formatPrice(grandTotal)}</span>
             </div>
           </div>
 
