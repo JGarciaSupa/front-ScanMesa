@@ -5,7 +5,7 @@ import { Clock, MapPin, ShoppingBag, Plus, Minus, Trash2, CheckCircle2, Share2, 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetFooter } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetFooter, SheetDescription } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -68,6 +68,7 @@ export default function ClientMenu({ tableId, tenantData }: ClientMenuProps) {
   const [toastType, setToastType] = useState<"success" | "error">("success");
   const [isLoading, setIsLoading] = useState(false);
   const [isSessionChecking, setIsSessionChecking] = useState(true);
+  const [selectedDetailProduct, setSelectedDetailProduct] = useState<Product | null>(null);
 
   const getTenantSlug = () => {
     const host = window.location.hostname;
@@ -549,7 +550,7 @@ export default function ClientMenu({ tableId, tenantData }: ClientMenuProps) {
       {/* Principal Header */}
       <header className="relative w-full h-56 md:h-64 lg:h-80 overflow-hidden bg-black/80">
         <img
-          src={tenantData.info.bannerUrl || "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=1400&q=90"}
+          src={tenantData.info.bannerUrl || ""}
           alt="Restaurant cover"
           className="absolute inset-0 w-full h-full object-cover opacity-60 mix-blend-overlay"
         />
@@ -651,9 +652,10 @@ export default function ClientMenu({ tableId, tenantData }: ClientMenuProps) {
               <Card 
                 key={product.id} 
                 className={cn(
-                  "py-0 overflow-hidden border-0 shadow-sm rounded-2xl bg-white hover:shadow-md transition-shadow relative",
-                  isDisabled && "opacity-60 grayscale-[0.5]"
+                  "py-0 overflow-hidden border-0 shadow-sm rounded-md bg-white hover:shadow-md transition-all relative cursor-pointer active:scale-[0.98]",
+                  isDisabled && "opacity-60 grayscale-[0.5] cursor-not-allowed"
                 )}
+                onClick={() => !isDisabled && addToCart(product)}
               >
                 {isDisabled && (
                   <div className="absolute inset-0 bg-white/20 backdrop-blur-[1px] flex items-center justify-center z-10 pointer-events-none">
@@ -663,18 +665,30 @@ export default function ClientMenu({ tableId, tenantData }: ClientMenuProps) {
                   </div>
                 )}
                 <div className="flex flex-row h-28 md:h-40">
-                  <div className="w-1/3 min-w-25 shrink-0 bg-stone-100 relative overflow-hidden">
+                  <div 
+                    className="w-1/3 min-w-25 shrink-0 bg-stone-100 relative overflow-hidden group/img"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (!isDisabled) setSelectedDetailProduct(product);
+                    }}
+                  >
                     <img
-                      src={product.imageUrl || "/placeholder-food.jpg"}
+                      src={product.imageUrl}
                       alt={product.name}
-                      className="absolute inset-0 w-full h-full object-cover"
+                      className="absolute inset-0 w-full h-full object-cover transition-transform"
                       loading="lazy"
                     />
                   </div>
                   <div className="flex-1 p-3 md:p-4 flex flex-col justify-between min-w-0">
                     <div className="overflow-hidden">
                       <div className="flex justify-between items-start gap-1">
-                        <h3 className="font-bold text-sm md:text-lg text-zinc-900 leading-tight mb-0.5 truncate flex-1">
+                        <h3 
+                          className="font-bold text-sm md:text-lg text-zinc-900 leading-tight mb-0.5 truncate flex-1 hover:underline decoration-zinc-300 underline-offset-2"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (!isDisabled) setSelectedDetailProduct(product);
+                          }}
+                        >
                           {product.name}
                         </h3>
                         {product.trackStock && product.currentStock > 0 && product.currentStock <= 5 && (
@@ -689,14 +703,17 @@ export default function ClientMenu({ tableId, tenantData }: ClientMenuProps) {
                     </div>
                     <div className="flex items-center justify-between mt-1">
                       <span className="font-bold text-sm md:text-base text-zinc-900">
-                        €{Number(product.price).toFixed(2)}
+                        {tenantData.info.currency || '€'}{Number(product.price).toFixed(2)}
                       </span>
                       <Button
                         size="icon"
                         variant="default"
                         disabled={isDisabled}
                         className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-zinc-900 hover:bg-zinc-800 shadow-sm transform active:scale-90 transition-transform disabled:bg-zinc-200 disabled:text-zinc-400"
-                        onClick={() => addToCart(product)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          addToCart(product);
+                        }}
                       >
                         <Plus className="w-4 h-4 md:w-5 md:h-5 text-white" />
                       </Button>
@@ -737,6 +754,9 @@ export default function ClientMenu({ tableId, tenantData }: ClientMenuProps) {
               <SheetTitle className="text-2xl font-extrabold text-left flex items-center gap-2">
                 Tu pedido <span className="text-zinc-400 font-medium text-lg">·</span> <span className="text-zinc-500 font-medium text-lg">{guestName}</span>
               </SheetTitle>
+              <SheetDescription className="sr-only">
+                Resumen de los productos que has añadido a tu carrito.
+              </SheetDescription>
             </SheetHeader>
             
             <ScrollArea className="flex-1 p-6">
@@ -816,6 +836,78 @@ export default function ClientMenu({ tableId, tenantData }: ClientMenuProps) {
             </SheetFooter>
           </SheetContent>
         </Sheet>
+
+      {/* Product Detail Modal */}
+      <Dialog open={!!selectedDetailProduct} onOpenChange={(open) => !open && setSelectedDetailProduct(null)}>
+        <DialogContent className="sm:max-w-[425px] p-0 overflow-hidden rounded-md border-none">
+          {selectedDetailProduct && (
+            <div className="flex flex-col">
+              <div className="relative h-64 w-full">
+                <img 
+                  src={selectedDetailProduct.imageUrl || ""} 
+                  alt={selectedDetailProduct.name}
+                  className="w-full h-full object-cover"
+                />
+                <Button 
+                  variant="secondary" 
+                  size="icon" 
+                  className="absolute top-4 right-4 rounded-full bg-black/50 hover:bg-black/70 text-white border-none h-8 w-8 hover:rounded-full"
+                  onClick={() => setSelectedDetailProduct(null)}
+                >
+                  <Plus className="w-4 h-4 rotate-45" />
+                </Button>
+              </div>
+              <div className="p-6 space-y-4">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <DialogTitle className="text-2xl font-bold text-zinc-900 leading-tight">
+                      {selectedDetailProduct.name}
+                    </DialogTitle>
+                    <Badge variant="secondary" className="mt-1">
+                      {tenantData.categories.find(c => c.id === selectedDetailProduct.categoryId)?.name}
+                    </Badge>
+                  </div>
+                  <span className="text-2xl font-bold text-zinc-900">
+                    {tenantData.info.currency || '€'}{Number(selectedDetailProduct.price).toFixed(2)}
+                  </span>
+                </div>
+                
+                <DialogDescription className="text-zinc-600 leading-relaxed text-base">
+                  {selectedDetailProduct.description || "Sin descripción disponible."}
+                </DialogDescription>
+
+                {selectedDetailProduct.trackStock && (
+                  <div className="flex items-center gap-2 text-sm font-medium">
+                    <span className={cn(
+                      "w-2 h-2 rounded-full",
+                      selectedDetailProduct.currentStock > 0 ? "bg-green-500" : "bg-red-500"
+                    )} />
+                    <span className="text-zinc-500">
+                      {selectedDetailProduct.currentStock > 0 
+                        ? `${selectedDetailProduct.currentStock} unidades disponibles`
+                        : "Agotado"}
+                    </span>
+                  </div>
+                )}
+
+                <div className="pt-4">
+                  <Button 
+                    className="w-full h-12 rounded-md font-bold bg-zinc-900 hover:bg-black text-white shadow-lg flex items-center justify-center gap-2"
+                    disabled={!selectedDetailProduct.isAvailable || (selectedDetailProduct.trackStock && selectedDetailProduct.currentStock <= 0)}
+                    onClick={() => {
+                      addToCart(selectedDetailProduct);
+                      setSelectedDetailProduct(null);
+                    }}
+                  >
+                    <Plus className="w-5 h-5" />
+                    Añadir al pedido
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
