@@ -12,11 +12,17 @@ import {
   LogOut,
   Menu,
   Tags,
-  Receipt
+  Receipt,
+  ChefHat,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
+import {
+  Sheet,
+  SheetContent,
+  SheetTrigger,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import {
   Select,
   SelectContent,
@@ -72,14 +78,14 @@ function SidebarContent() {
       {/* Header Sidebar */}
       <div className="flex h-16 items-center border-b border-slate-800 px-4 gap-3 bg-slate-950/50">
         <Avatar className="h-9 w-9 border border-slate-700 bg-slate-800">
-          {logoUrl ? (
-            <AvatarImage src={logoUrl} alt={tenantName} />
-          ) : null}
+          {logoUrl ? <AvatarImage src={logoUrl} alt={tenantName} /> : null}
           <AvatarFallback className="bg-primary/20 text-primary font-bold text-xs">
             {getInitials(tenantName)}
           </AvatarFallback>
         </Avatar>
-        <span className="font-bold text-lg text-white tracking-tight truncate">{tenantName}</span>
+        <span className="font-bold text-lg text-white tracking-tight truncate">
+          {tenantName}
+        </span>
       </div>
 
       {/* Nav */}
@@ -99,7 +105,9 @@ function SidebarContent() {
               >
                 <item.icon
                   className={`mr-3 h-5 w-5 shrink-0 transition-colors ${
-                    isActive ? "text-white" : "text-slate-500 group-hover:text-slate-300"
+                    isActive
+                      ? "text-white"
+                      : "text-slate-500 group-hover:text-slate-300"
                   }`}
                   aria-hidden="true"
                 />
@@ -112,12 +120,28 @@ function SidebarContent() {
 
       {/* Footer Sidebar */}
       <div className="border-t border-slate-800 p-4 space-y-3 bg-slate-900/50">
-        <Button variant="outline" className="w-full justify-start text-slate-200 border-slate-700 hover:bg-slate-800 hover:text-white bg-transparent">
-          <Store className="mr-2 h-4 w-4" />
-          Ir al POS (Sala)
+        <Button
+          asChild
+          variant="outline"
+          className="w-full justify-start text-slate-200 border-slate-700 hover:bg-slate-800 hover:text-white bg-transparent"
+        >
+          <Link href="/pos" target="_blank">
+            <Store className="mr-2 h-4 w-4" />
+            Ir al POS (Sala)
+          </Link>
         </Button>
-        <Button 
-          variant="ghost" 
+        <Button
+          asChild
+          variant="outline"
+          className="w-full justify-start text-slate-200 border-slate-700 hover:bg-slate-800 hover:text-white bg-transparent"
+        >
+          <Link href="/kds" target="_blank">
+            <ChefHat className="mr-2 h-4 w-4" />
+            Ir a Cocina (KDS)
+          </Link>
+        </Button>
+        <Button
+          variant="ghost"
           className="w-full justify-start text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors"
           onClick={handleLogout}
         >
@@ -163,33 +187,51 @@ export default function DashboardLayout({
         <div className="flex flex-col flex-1 min-w-0">
           {/* Header */}
           <header className="sticky top-0 z-10 flex h-16 shrink-0 items-center justify-between gap-x-4 border-b border-slate-200 bg-white/80 backdrop-blur-md px-4 sm:gap-x-6 sm:px-6 lg:px-8">
-            
             <div className="flex items-center gap-4">
               <Sheet>
                 <SheetTrigger asChild>
-                  <Button variant="ghost" size="icon" className="-m-2 p-2 text-slate-700 lg:hidden hover:bg-slate-100">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="-m-2 p-2 text-slate-700 lg:hidden hover:bg-slate-100"
+                  >
                     <span className="sr-only">Open sidebar</span>
                     <Menu className="h-6 w-6" aria-hidden="true" />
                   </Button>
                 </SheetTrigger>
-                <SheetContent side="left" className="p-0 w-72 border-r-slate-800">
-                  <SheetTitle className="sr-only">Menú de navegación</SheetTitle>
+                <SheetContent
+                  side="left"
+                  className="p-0 w-72 border-r-slate-800"
+                >
+                  <SheetTitle className="sr-only">
+                    Menú de navegación
+                  </SheetTitle>
                   <SidebarContent />
                 </SheetContent>
               </Sheet>
 
               {/* Separator for mobile */}
-              <div className="h-6 w-px bg-slate-200 lg:hidden" aria-hidden="true" />
+              <div
+                className="h-6 w-px bg-slate-200 lg:hidden"
+                aria-hidden="true"
+              />
 
               {/* Breadcrumbs */}
               <Breadcrumb className="hidden sm:flex">
                 <BreadcrumbList>
                   <BreadcrumbItem>
-                    <BreadcrumbLink href="/dashboard" className="text-slate-500 hover:text-slate-900">Dashboard</BreadcrumbLink>
+                    <BreadcrumbLink
+                      href="/dashboard"
+                      className="text-slate-500 hover:text-slate-900"
+                    >
+                      Dashboard
+                    </BreadcrumbLink>
                   </BreadcrumbItem>
                   <BreadcrumbSeparator />
                   <BreadcrumbItem>
-                    <BreadcrumbPage className="font-semibold text-slate-900">Inicio</BreadcrumbPage>
+                    <BreadcrumbPage className="font-semibold text-slate-900">
+                      Inicio
+                    </BreadcrumbPage>
                   </BreadcrumbItem>
                 </BreadcrumbList>
               </Breadcrumb>
@@ -208,13 +250,19 @@ export default function DashboardLayout({
                   </SelectContent>
                 </Select>
               </div>
-              
+
               {/* Separator */}
-              <div className="hidden sm:block h-6 w-px bg-slate-200" aria-hidden="true" />
+              <div
+                className="hidden sm:block h-6 w-px bg-slate-200"
+                aria-hidden="true"
+              />
 
               {/* Profile */}
               <Avatar className="h-9 w-9 cursor-pointer ring-2 ring-transparent hover:ring-slate-200 transition-all">
-                <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.name || 'Admin'}`} alt="Admin Avatar" />
+                <AvatarImage
+                  src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.name || "Admin"}`}
+                  alt="Admin Avatar"
+                />
                 <AvatarFallback className="bg-slate-900 text-white text-xs font-medium">
                   {user ? getInitials(user.name) : "AD"}
                 </AvatarFallback>
