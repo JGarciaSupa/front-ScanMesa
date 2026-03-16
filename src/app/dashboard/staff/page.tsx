@@ -10,14 +10,14 @@ import {
 } from "@/app/actions/staff";
 import { useAuthStore } from "@/store/useAuthStore";
 
-// Components
-import { StaffHeader } from "./components/StaffHeader";
-import { StaffFilters } from "./components/StaffFilters";
-import { StaffGrid } from "./components/StaffGrid";
-import { StaffDialog } from "./components/StaffDialog";
+// Componentes del dashboard para la gestión del personal importados desde la ubicación compartida
+import { StaffHeader } from "@/components/dashboard/staff/StaffHeader";
+import { StaffFilters } from "@/components/dashboard/staff/StaffFilters";
+import { StaffGrid } from "@/components/dashboard/staff/StaffGrid";
+import { StaffDialog } from "@/components/dashboard/staff/StaffDialog";
 
-// Types
-import { Role, StaffMember } from "./types";
+// Tipos importados desde la ubicación de los componentes compartidos
+import { Role, StaffMember } from "@/components/dashboard/staff/types";
 
 export default function StaffManagementPage() {
   const { user: currentUser } = useAuthStore();
@@ -26,7 +26,7 @@ export default function StaffManagementPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState("all");
 
-  // Dialog / Form states
+  // Estados del Dialogo / Formulario
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingStaff, setEditingStaff] = useState<StaffMember | null>(null);
   const [submitting, setSubmitting] = useState(false);

@@ -17,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Role, StaffMember } from "../types";
+import { Role, StaffMember } from "./types";
 
 interface StaffDialogProps {
   isOpen: boolean;

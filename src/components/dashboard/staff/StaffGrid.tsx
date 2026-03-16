@@ -1,7 +1,7 @@
 import { Loader2, UserX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StaffCard } from "./StaffCard";
-import { StaffMember } from "../types";
+import { StaffMember } from "./types";
 
 interface StaffGridProps {
   loading: boolean;

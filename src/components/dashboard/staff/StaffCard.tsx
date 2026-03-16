@@ -17,7 +17,7 @@ import {
   DropdownMenuSeparator, 
   DropdownMenuTrigger 
 } from "@/components/ui/dropdown-menu";
-import { StaffMember, Role } from "../types";
+import { StaffMember, Role } from "./types";
 
 const roleConfig: Record<Role, { label: string, color: string }> = {
   admin: { label: "Admin", color: "bg-blue-100 text-blue-800 hover:bg-blue-200 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800" },
