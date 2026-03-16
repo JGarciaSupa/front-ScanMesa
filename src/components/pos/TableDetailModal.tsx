@@ -234,9 +234,9 @@ export function TableDetailModal({
               className="w-full h-12 text-xs font-bold uppercase tracking-widest shadow-md transition-all active:scale-[0.98]"
               size="lg"
               onClick={onOpenCloseConfirm}
-              disabled={!table.activeSession || grandTotal === 0}
+              disabled={!table.activeSession}
             >
-              Cobrar y Cerrar Mesa
+              {grandTotal > 0 ? "Cobrar y Cerrar Mesa" : "Liberar Mesa"}
             </Button>
           </div>
         )}

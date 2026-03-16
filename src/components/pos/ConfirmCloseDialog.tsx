@@ -41,13 +41,17 @@ export function ConfirmCloseDialog({
         <DialogHeader className="space-y-3">
           <DialogTitle className="text-2xl font-black tracking-tight">Finalizar servicio</DialogTitle>
           <DialogDescription className="text-slate-500 font-medium">
-            Confirma el pago para liberar la mesa y generar el comprobante.
+            {grandTotal > 0 
+              ? "Confirma el pago para liberar la mesa y generar el comprobante."
+              : "La mesa se liberará sin consumos registrados."}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6 py-4">
           <div className="bg-slate-900 p-6 rounded-[24px] text-white flex justify-between items-center shadow-lg shadow-slate-200">
-            <span className="text-[10px] font-black uppercase tracking-widest opacity-60">Total a cobrar</span>
+            <span className="text-[10px] font-black uppercase tracking-widest opacity-60">
+              {grandTotal > 0 ? "Total a cobrar" : "Total consumido"}
+            </span>
             <span className="text-3xl font-black tracking-tighter">{formatPrice(grandTotal)}</span>
           </div>
         </div>
@@ -59,7 +63,7 @@ export function ConfirmCloseDialog({
             disabled={isClosing}
           >
             {isClosing ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5 mr-3" />}
-            Confirmar y Cerrar Mesa
+            {grandTotal > 0 ? "Confirmar y Cerrar Mesa" : "Confirmar y Liberar Mesa"}
           </Button>
           <Button variant="ghost" className="h-12 rounded-2xl font-bold text-slate-400" onClick={() => onOpenChange(false)}>
             Cancelar

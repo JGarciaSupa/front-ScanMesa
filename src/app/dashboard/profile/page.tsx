@@ -106,7 +106,9 @@ export default function ProfilePage() {
     <div className="max-w-2xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-slate-900">Mi Perfil</h1>
+          <h1 className="text-3xl font-bold tracking-tight text-slate-900">
+            Mi Perfil
+          </h1>
           <p className="text-slate-500 mt-1">
             Gestiona tu información personal y configuración de cuenta.
           </p>
@@ -122,14 +124,10 @@ export default function ProfilePage() {
       <div className="grid gap-8">
         {/* Avatar Section */}
         <Card className="border-slate-200 shadow-sm overflow-hidden">
-          <div className="h-32 bg-gradient-to-r from-slate-900 to-slate-800" />
+          <div className="h-32 bg-linear-to-r from-slate-900 to-slate-800" />
           <CardContent className="relative pt-0 flex flex-col items-center">
             <div className="-mt-16 ring-4 ring-white rounded-full bg-white">
               <Avatar className="h-32 w-32 border-4 border-white shadow-xl">
-                <AvatarImage
-                  src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user.name}`}
-                  alt={user.name}
-                />
                 <AvatarFallback className="bg-slate-900 text-white text-2xl font-bold">
                   {getInitials(user.name)}
                 </AvatarFallback>
@@ -188,7 +186,9 @@ export default function ProfilePage() {
               </div>
 
               <div className="pt-4 border-t border-slate-100">
-                <h3 className="text-sm font-semibold text-slate-900 mb-4">Cambiar Contraseña</h3>
+                <h3 className="text-sm font-semibold text-slate-900 mb-4">
+                  Cambiar Contraseña
+                </h3>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="password">Nueva Contraseña</Label>
@@ -204,10 +204,14 @@ export default function ProfilePage() {
                         placeholder="••••••••"
                       />
                     </div>
-                    <p className="text-[10px] text-slate-500">Dejar en blanco para no cambiar</p>
+                    <p className="text-[10px] text-slate-500">
+                      Dejar en blanco para no cambiar
+                    </p>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="confirmPassword">Confirmar Contraseña</Label>
+                    <Label htmlFor="confirmPassword">
+                      Confirmar Contraseña
+                    </Label>
                     <div className="relative">
                       <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                       <Input

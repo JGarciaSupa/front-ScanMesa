@@ -1,9 +1,12 @@
 "use client";
 
-import { Wifi, WifiOff, Bell, BellOff } from "lucide-react";
+import { Wifi, WifiOff, Bell, BellOff, LayoutDashboard } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import Link from "next/link";
+import { useAuthStore } from "@/store/useAuthStore";
 import { cn } from "@/lib/utils";
 
 interface PosHeaderProps {
@@ -21,6 +24,9 @@ interface PosHeaderProps {
  * y el control para activar/desactivar notificaciones del sistema.
  */
 export function PosHeader({ isConnected, notificationsEnabled, onToggleNotifications }: PosHeaderProps) {
+  const user = useAuthStore((state) => state.user);
+  const isAdmin = user?.role?.toLowerCase() === "admin";
+
   return (
     <div className="flex justify-between items-center mb-8">
       <div className="flex items-center gap-4">
@@ -34,7 +40,15 @@ export function PosHeader({ isConnected, notificationsEnabled, onToggleNotificat
         </Badge>
       </div>
 
-      <div className="flex items-center gap-6">
+      <div className="flex items-center gap-4">
+        {isAdmin && (
+          <Button variant="outline" size="sm" asChild className="font-bold border-slate-200 text-slate-600 hover:bg-slate-50 transition-all shadow-sm rounded-xl h-11 px-6">
+            <Link href="/dashboard" className="flex items-center gap-2">
+              <LayoutDashboard className="w-4 h-4" />
+              DASHBOARD
+            </Link>
+          </Button>
+        )}
         <div className="flex items-center gap-3 bg-slate-50 px-4 py-2 rounded-2xl border border-slate-100 shadow-sm">
           <Label htmlFor="notifications" className="cursor-pointer group">
             {notificationsEnabled ? (

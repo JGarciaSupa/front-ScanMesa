@@ -4,13 +4,28 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { Clock, CheckCircle2, Siren, Loader2, Wifi, WifiOff } from "lucide-react";
+import {
+  Clock,
+  CheckCircle2,
+  Siren,
+  Loader2,
+  Wifi,
+  WifiOff,
+  LayoutDashboard,
+} from "lucide-react";
 import Masonry from "react-masonry-css";
 import { toast } from "sonner";
-import { getKdsOrdersAction, markItemServedAction, markOrderCompleteAction } from "@/app/actions/orders";
+import {
+  getKdsOrdersAction,
+  markItemServedAction,
+  markOrderCompleteAction,
+} from "@/app/actions/orders";
 import { getSocketConfigAction } from "@/app/actions/socket-config";
 
 import { useKdsStore } from "@/store/useKdsStore";
+import { useAuthStore } from "@/store/useAuthStore";
+import { Button } from "@/components/ui/button";
+import Link from "next/link";
 
 // Interfaces
 type OrderItem = {
@@ -38,6 +53,8 @@ export default function KDSPage() {
   const [isConnected, setIsConnected] = useState(false);
   const socketRef = useRef<WebSocket | null>(null);
   const setPendingCount = useKdsStore((state) => state.setPendingCount);
+  const user = useAuthStore((state) => state.user);
+  const isAdmin = user?.role?.toLowerCase() === "admin";
 
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 1000);
@@ -68,7 +85,7 @@ export default function KDSPage() {
 
     async function initSocket() {
       const config = await getSocketConfigAction();
-      
+
       if (!mounted) return;
 
       if (socketRef.current) {
@@ -76,9 +93,9 @@ export default function KDSPage() {
       }
 
       // En WebSocket nativo pasamos token y tenantId por la URL
-      const wsUrl = new URL(`${config.url.replace('http', 'ws')}/ws`);
-      wsUrl.searchParams.set('token', config.token || '');
-      wsUrl.searchParams.set('tenantId', config.slug || '');
+      const wsUrl = new URL(`${config.url.replace("http", "ws")}/ws`);
+      wsUrl.searchParams.set("token", config.token || "");
+      wsUrl.searchParams.set("tenantId", config.slug || "");
 
       const socket = new WebSocket(wsUrl.toString());
       socketRef.current = socket;
@@ -96,16 +113,16 @@ export default function KDSPage() {
       };
 
       socket.onerror = (error) => {
-        console.error('[WS Nativo] Error de conexión');
+        console.error("[WS Nativo] Error de conexión");
       };
 
       socket.onmessage = (event) => {
         try {
           const { event: eventName, data } = JSON.parse(event.data);
-          
-          if (eventName === 'order:created') {
+
+          if (eventName === "order:created") {
             toast("Nuevo pedido recibido", {
-              description: `Mesa: ${data.table || 'Principal'}` as any,
+              description: `Mesa: ${data.table || "Principal"}` as any,
               action: {
                 label: "Ver",
                 onClick: () => fetchOrders(),
@@ -114,22 +131,26 @@ export default function KDSPage() {
             fetchOrders();
           }
 
-          if (eventName === 'order-item:served') {
+          if (eventName === "order-item:served") {
             setOrders((prev) =>
               prev.map((ord) => {
                 if (ord.sessionId !== data.sessionId) return ord;
                 return {
                   ...ord,
                   items: ord.items.map((item) =>
-                    item.id === data.itemId ? { ...item, isReady: data.status === 'served' } : item
+                    item.id === data.itemId
+                      ? { ...item, isReady: data.status === "served" }
+                      : item,
                   ),
                 };
-              })
+              }),
             );
           }
 
-          if (eventName === 'order:completed') {
-            setOrders((prev) => prev.filter((ord) => ord.sessionId !== data.sessionId));
+          if (eventName === "order:completed") {
+            setOrders((prev) =>
+              prev.filter((ord) => ord.sessionId !== data.sessionId),
+            );
           }
         } catch (e) {
           // Error procesando mensaje
@@ -149,38 +170,40 @@ export default function KDSPage() {
     };
   }, [fetchOrders]);
 
-  const markItemAsServed = useCallback(async (orderId: string, itemId: number, currentStatus: boolean) => {
-    if (currentStatus) return;
+  const markItemAsServed = useCallback(
+    async (orderId: string, itemId: number, currentStatus: boolean) => {
+      if (currentStatus) return;
 
-    // Optimistic update: marcar como listo visualmente mientras responde el backend.
-    setOrders((prev) =>
-      prev.map((ord) => {
-        if (ord.id !== orderId) return ord;
-        return {
-          ...ord,
-          items: ord.items.map((item) =>
-            item.id === itemId ? { ...item, isReady: true } : item
-          ),
-        };
-      })
-    );
+      // Optimistic update: marcar como listo visualmente mientras responde el backend.
+      setOrders((prev) =>
+        prev.map((ord) => {
+          if (ord.id !== orderId) return ord;
+          return {
+            ...ord,
+            items: ord.items.map((item) =>
+              item.id === itemId ? { ...item, isReady: true } : item,
+            ),
+          };
+        }),
+      );
 
-    try {
-      const res = await markItemServedAction(itemId);
-      if (res.success) {
-        toast.success("Producto marcado como listo");
-      } else {
-        toast.error(res.error || "Error al actualizar producto");
+      try {
+        const res = await markItemServedAction(itemId);
+        if (res.success) {
+          toast.success("Producto marcado como listo");
+        } else {
+          toast.error(res.error || "Error al actualizar producto");
+        }
+        // Refrescar para retirar items ya servidos de la lista pendiente.
+        fetchOrders();
+      } catch (error) {
+        console.error("Error marking item as served:", error);
+        toast.error("Error de conexión");
+        fetchOrders();
       }
-      // Refrescar para retirar items ya servidos de la lista pendiente.
-      fetchOrders();
-    } catch (error) {
-      console.error("Error marking item as served:", error);
-      toast.error("Error de conexión");
-      fetchOrders();
-    }
-  }, [fetchOrders]);
-
+    },
+    [fetchOrders],
+  );
 
   const getTimeColorSet = (minutes: number) => {
     if (minutes >= 20) {
@@ -215,15 +238,15 @@ export default function KDSPage() {
   const formatElapsed = (createdAt: string) => {
     const start = new Date(createdAt).getTime();
     const diff = Math.max(0, now.getTime() - start);
-    
+
     const hours = Math.floor(diff / 3600000);
     const minutes = Math.floor((diff % 3600000) / 60000);
     const seconds = Math.floor((diff % 60000) / 1000);
-    
-    const hStr = hours > 0 ? `${hours}:` : '';
-    const mStr = String(minutes).padStart(2, '0');
-    const sStr = String(seconds).padStart(2, '0');
-    
+
+    const hStr = hours > 0 ? `${hours}:` : "";
+    const mStr = String(minutes).padStart(2, "0");
+    const sStr = String(seconds).padStart(2, "0");
+
     return `${hStr}${mStr}:${sStr}`;
   };
 
@@ -240,9 +263,11 @@ export default function KDSPage() {
     <div className="w-full pb-6 px-4 pt-4">
       <div className="flex justify-between items-center mb-6">
         <div className="flex items-center gap-4">
-          <h1 className="text-2xl font-black text-slate-800 tracking-tight uppercase">Kitchen Display System</h1>
-          <Badge 
-            variant={isConnected ? "secondary" : "destructive"} 
+          <h1 className="text-2xl font-black text-slate-800 tracking-tight uppercase">
+            Kitchen Display System
+          </h1>
+          <Badge
+            variant={isConnected ? "secondary" : "destructive"}
             className={`font-bold transition-all duration-300 ${isConnected ? "bg-green-100 text-green-700 hover:bg-green-100" : ""}`}
           >
             {isConnected ? (
@@ -256,16 +281,38 @@ export default function KDSPage() {
             )}
           </Badge>
         </div>
-        <Badge variant="outline" className="font-bold text-slate-500">
-          {orders.length} PEDIDOS ACTIVOS
-        </Badge>
+        <div className="flex items-center gap-3">
+          {isAdmin && (
+            <Button
+              variant="outline"
+              size="sm"
+              asChild
+              className="font-bold border-slate-200 text-slate-600 hover:bg-slate-50 transition-all shadow-sm"
+            >
+              <Link href="/dashboard" className="flex items-center gap-2">
+                <LayoutDashboard className="w-4 h-4" />
+                DASHBOARD
+              </Link>
+            </Button>
+          )}
+          <Badge
+            variant="outline"
+            className="font-bold text-slate-500 py-1.5 px-3"
+          >
+            {orders.length} PEDIDOS ACTIVOS
+          </Badge>
+        </div>
       </div>
 
       {orders.length === 0 ? (
         <div className="w-full flex flex-col items-center justify-center text-muted-foreground gap-4 mt-20">
           <CheckCircle2 className="w-24 h-24 text-slate-200" />
-          <h2 className="text-2xl font-bold tracking-tight text-center text-slate-400">Cocina al día</h2>
-          <p className="text-center text-slate-400">No hay pedidos pendientes por ahora.</p>
+          <h2 className="text-2xl font-bold tracking-tight text-center text-slate-400">
+            Cocina al día
+          </h2>
+          <p className="text-center text-slate-400">
+            No hay pedidos pendientes por ahora.
+          </p>
         </div>
       ) : (
         <Masonry
@@ -281,7 +328,9 @@ export default function KDSPage() {
                 key={order.id}
                 className={`py-0 flex flex-col gap-0 overflow-hidden shadow-sm transition-all duration-300 w-full border-2 ${colors.cardClass}`}
               >
-                <CardHeader className={`px-4 py-3 flex flex-row items-center justify-between space-y-0 gap-2 shrink-0 ${colors.headerClass}`}>
+                <CardHeader
+                  className={`px-4 py-3 flex flex-row items-center justify-between space-y-0 gap-2 shrink-0 ${colors.headerClass}`}
+                >
                   <div className="flex flex-col gap-0.5 min-w-0">
                     <span className="text-2xl font-black uppercase tracking-tight leading-none truncate">
                       {order.table}
@@ -297,13 +346,15 @@ export default function KDSPage() {
                     {formatElapsed(order.createdAt)}
                   </div>
                 </CardHeader>
-  
+
                 <CardContent className="p-0 bg-white">
                   <div className="divide-y divide-slate-100">
                     {order.items.map((item) => (
                       <div
                         key={item.id}
-                        onClick={() => markItemAsServed(order.id, item.id, item.isReady)}
+                        onClick={() =>
+                          markItemAsServed(order.id, item.id, item.isReady)
+                        }
                         className={`flex items-start gap-4 p-4 cursor-pointer transition-colors hover:bg-slate-50 ${
                           item.isReady ? "bg-slate-50/50" : ""
                         }`}
@@ -317,7 +368,9 @@ export default function KDSPage() {
                         <div className="flex-1 min-w-0">
                           <div
                             className={`text-base font-bold uppercase leading-6 transition-all ${
-                              item.isReady ? "line-through text-slate-300" : "text-slate-800"
+                              item.isReady
+                                ? "line-through text-slate-300"
+                                : "text-slate-800"
                             }`}
                           >
                             <span className="font-black text-zinc-900 mr-2">
@@ -326,7 +379,10 @@ export default function KDSPage() {
                             {item.name}
                           </div>
                           {item.notes && !item.isReady && (
-                            <Badge variant="secondary" className="bg-yellow-500/10 text-yellow-700 border-yellow-200/50 hover:bg-yellow-500/20 font-bold uppercase tracking-widest text-[10px] px-2 py-0.5 mt-1.5 w-fit">
+                            <Badge
+                              variant="secondary"
+                              className="bg-yellow-500/10 text-yellow-700 border-yellow-200/50 hover:bg-yellow-500/20 font-bold uppercase tracking-widest text-[10px] px-2 py-0.5 mt-1.5 w-fit"
+                            >
                               ⚠️ {item.notes}
                             </Badge>
                           )}

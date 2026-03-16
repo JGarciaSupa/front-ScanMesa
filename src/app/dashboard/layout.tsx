@@ -125,7 +125,7 @@ function SidebarContent() {
           variant="outline"
           className="w-full justify-start text-slate-200 border-slate-700 hover:bg-slate-800 hover:text-white bg-transparent"
         >
-          <Link href="/pos" target="_blank">
+          <Link href="/pos">
             <Store className="mr-2 h-4 w-4" />
             Ir al POS (Sala)
           </Link>
@@ -135,7 +135,7 @@ function SidebarContent() {
           variant="outline"
           className="w-full justify-start text-slate-200 border-slate-700 hover:bg-slate-800 hover:text-white bg-transparent"
         >
-          <Link href="/kds" target="_blank">
+          <Link href="/kds">
             <ChefHat className="mr-2 h-4 w-4" />
             Ir a Cocina (KDS)
           </Link>
@@ -241,10 +241,6 @@ export default function DashboardLayout({
               {/* Profile */}
               <Link href="/dashboard/profile">
                 <Avatar className="h-9 w-9 cursor-pointer ring-2 ring-transparent hover:ring-slate-200 transition-all">
-                  <AvatarImage
-                    src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.name || "Admin"}`}
-                    alt="Admin Avatar"
-                  />
                   <AvatarFallback className="bg-slate-900 text-white text-xs font-medium">
                     {user ? getInitials(user.name) : "AD"}
                   </AvatarFallback>
