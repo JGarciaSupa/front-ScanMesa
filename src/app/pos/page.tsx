@@ -84,7 +84,9 @@ export default function PosPage() {
   const [permissionState, setPermissionState] = useState<NotificationPermission>("default");
   const socketRef = useRef<WebSocket | null>(null);
   const selectedSessionIdRef = useRef<number | null>(null);
+  const alerts = usePosStore((state) => state.alerts);
   const addAlert = usePosStore((state) => state.addAlert);
+  const unreadCount = alerts.filter(a => !a.isRead).length;
 
   useEffect(() => {
     if (typeof window !== "undefined" && "Notification" in window) {
@@ -384,9 +386,9 @@ export default function PosPage() {
             <PopoverTrigger asChild>
               <Button variant="outline" size="icon" className="relative h-12 w-12 rounded-2xl border-2 hover:bg-slate-50 transition-all">
                 <Bell className="h-5 w-5" />
-                {usePosStore((state) => state.getUnreadCount()) > 0 && (
+                {unreadCount > 0 && (
                   <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-600 text-[10px] font-bold text-white ring-2 ring-white animate-bounce">
-                    {usePosStore((state) => state.getUnreadCount())}
+                    {unreadCount}
                   </span>
                 )}
               </Button>
@@ -405,7 +407,7 @@ export default function PosPage() {
               </div>
               <ScrollArea className="h-[350px]">
                 <div className="p-2">
-                  {usePosStore((state) => state.alerts).length === 0 ? (
+                  {alerts.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-10 text-center">
                       <div className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center mb-3">
                         <MessageSquare className="w-6 h-6 text-slate-300" />
@@ -413,7 +415,7 @@ export default function PosPage() {
                       <p className="text-xs font-bold text-slate-400">Sin alertas pendientes</p>
                     </div>
                   ) : (
-                    usePosStore((state) => state.alerts).map((alert) => (
+                    alerts.map((alert) => (
                       <div 
                         key={alert.id} 
                         className={cn(

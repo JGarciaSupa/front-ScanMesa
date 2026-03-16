@@ -56,8 +56,10 @@ export default function CartDrawer({
 
       <SheetContent side="bottom" className="h-[90vh] md:h-auto md:max-h-[90vh] md:side-right md:w-100 flex flex-col rounded-t-3xl md:rounded-l-3xl p-0 bg-[#FAF8F4] overflow-hidden">
           <SheetHeader className="p-6 pb-4 border-b border-stone-200/80 bg-white">
-            <SheetTitle className="text-2xl font-extrabold text-left flex items-center gap-2">
-              Tu pedido <span className="text-zinc-400 font-medium text-lg">·</span> <span className="text-zinc-500 font-medium text-lg">{guestName}</span>
+            <SheetTitle className="text-2xl font-extrabold text-left flex items-center gap-2 min-w-0 pr-10">
+              <span className="shrink-0 whitespace-nowrap">Tu pedido</span>
+              <span className="text-zinc-400 font-medium text-lg shrink-0">·</span>
+              <span className="text-zinc-500 font-medium text-lg truncate">{guestName}</span>
             </SheetTitle>
             <SheetDescription className="sr-only">
               Resumen de los productos que has añadido a tu carrito.
@@ -122,7 +124,7 @@ export default function CartDrawer({
                   <span>{formatPrice(cartTotalPrice)}</span>
                 </div>
                 <Button 
-                  className="w-full h-14 rounded-2xl text-lg font-bold bg-zinc-900 hover:bg-black text-white shadow-xl hover:shadow-2xl transition-all"
+                  className="w-full h-12 rounded-2xl text-lg font-bold bg-zinc-900 hover:bg-black text-white shadow-xl hover:shadow-2xl transition-all"
                   onClick={confirmOrder}
                 >
                   Confirmar pedido

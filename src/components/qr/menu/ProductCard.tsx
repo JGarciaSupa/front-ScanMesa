@@ -1,7 +1,6 @@
 "use client";
 
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import { cn, formatPrice } from "@/lib/utils";
@@ -27,18 +26,21 @@ export default function ProductCard({
     <Card 
       className={cn(
         "py-0 overflow-hidden border-0 shadow-sm rounded-md bg-white hover:shadow-md transition-all relative cursor-pointer active:scale-[0.98]",
-        isDisabled && "opacity-60 grayscale-[0.5] cursor-not-allowed"
+        isDisabled && "cursor-not-allowed"
       )}
       onClick={() => !isDisabled && onAddToCart(product)}
     >
       {isDisabled && (
-        <div className="absolute inset-0 bg-white/20 backdrop-blur-[1px] flex items-center justify-center z-10 pointer-events-none">
-          <Badge variant="destructive" className="px-3 py-1 text-xs font-bold uppercase tracking-wider shadow-sm border-none bg-red-600 text-white">
-            Agotado
-          </Badge>
-        </div>
+        <>
+          <div className="absolute inset-0 bg-white/40 backdrop-blur-[1px] z-10 pointer-events-none rounded-md" />
+          <div className="absolute top-0 left-0 overflow-hidden w-20 h-20 z-20 pointer-events-none">
+            <div className="absolute top-4 -left-10 w-32 py-0.5 bg-red-600 text-white text-[9px] font-bold text-center -rotate-45 shadow-md uppercase tracking-wider border-y border-red-400/30">
+              Agotado
+            </div>
+          </div>
+        </>
       )}
-      <div className="flex flex-row h-28 md:h-40">
+      <div className={cn("flex flex-row h-28 md:h-40", isDisabled && "grayscale-[0.8] opacity-80")}>
         <div 
           className="w-1/3 min-w-25 shrink-0 bg-stone-100 relative overflow-hidden group/img"
           onClick={(e) => {
