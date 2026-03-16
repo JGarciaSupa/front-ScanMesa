@@ -62,6 +62,7 @@ export default function ClientMenu({ tableId, tenantData }: ClientMenuProps) {
   const [isTableOccupied, setIsTableOccupied] = useState<boolean>(false);
   const [isCodePreFilled, setIsCodePreFilled] = useState<boolean>(false);
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [products, setProducts] = useState<Product[]>(tenantData.products);
   const [selectedCategoryId, setSelectedCategoryId] = useState<number>(0);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [toastType, setToastType] = useState<"success" | "error">("success");
@@ -196,6 +197,19 @@ export default function ClientMenu({ tableId, tenantData }: ClientMenuProps) {
             if (eventName === 'table:opened' && data.tableId === (internalTableId || parseInt(tableId))) {
                 // Podríamos refrescar el estado de ocupación
                 setIsTableOccupied(true);
+            }
+
+            // --- ACTUALIZACIONES DE PRODUCTOS EN TIEMPO REAL ---
+            if (eventName === 'product:created') {
+              setProducts(prev => [...prev, data]);
+            }
+
+            if (eventName === 'product:updated') {
+              setProducts(prev => prev.map(p => p.id === data.id ? { ...p, ...data } : p));
+            }
+
+            if (eventName === 'product:deleted') {
+              setProducts(prev => prev.filter(p => p.id !== data.id));
             }
           } catch (e) {
             console.error('[WS Cliente] Error procesando mensaje:', e);
@@ -441,8 +455,8 @@ export default function ClientMenu({ tableId, tenantData }: ClientMenuProps) {
   const cartTotalPrice = cart.reduce((acc, item) => acc + item.product.price * item.quantity, 0);
 
   const filteredProducts = selectedCategoryId === 0 
-    ? tenantData.products 
-    : tenantData.products.filter((p) => Number(p.categoryId) === selectedCategoryId);
+    ? products 
+    : products.filter((p) => Number(p.categoryId) === selectedCategoryId);
 
   return (
     <div className="w-full max-w-480 mx-auto min-h-screen bg-[#FAF8F4] relative pb-28">
