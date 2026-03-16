@@ -37,10 +37,10 @@ export function CategoryDeleteModal({
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10 mb-4">
             <AlertTriangle className="h-6 w-6 text-destructive" />
           </div>
-          <AlertDialogTitle className="text-center text-xl">
+          <AlertDialogTitle className="text-start text-xl">
             ¿Eliminar categoría?
           </AlertDialogTitle>
-          <AlertDialogDescription className="text-center">
+          <AlertDialogDescription className="text-start">
             Esta acción es{" "}
             <span className="font-bold text-foreground">irreversible</span>. Se
             eliminarán permanentemente la categoría{" "}
@@ -59,7 +59,7 @@ export function CategoryDeleteModal({
           </AlertDialogCancel>
           <Button
             variant="destructive"
-            className="w-full sm:w-auto h-10"
+            className="w-full sm:w-auto"
             onClick={onConfirm}
             disabled={submitting}
           >
