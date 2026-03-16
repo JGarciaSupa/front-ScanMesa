@@ -380,6 +380,15 @@ export default function MenuManagementPage() {
                     src={product.imageUrl}
                     alt={product.name}
                     className="object-cover w-full h-full"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      if (!target.dataset.retried && product.imageUrl) {
+                        target.dataset.retried = "true";
+                        setTimeout(() => {
+                          target.src = product.imageUrl + "?retry=" + Date.now();
+                        }, 500);
+                      }
+                    }}
                   />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center text-muted-foreground/40">

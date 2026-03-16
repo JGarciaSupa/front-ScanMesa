@@ -36,6 +36,16 @@ export default function ProductDetailModal({
               src={product.imageUrl || ""} 
               alt={product.name}
               className="w-full h-full object-cover"
+              loading="lazy"
+              onError={(e) => {
+                const target = e.target as HTMLImageElement;
+                if (!target.dataset.retried && product.imageUrl) {
+                  target.dataset.retried = "true";
+                  setTimeout(() => {
+                    target.src = product.imageUrl + "?retry=" + Date.now();
+                  }, 500);
+                }
+              }}
             />
             <Badge 
               variant="secondary" 

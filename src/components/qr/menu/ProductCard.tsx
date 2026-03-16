@@ -53,6 +53,15 @@ export default function ProductCard({
             alt={product.name}
             className="absolute inset-0 w-full h-full object-cover transition-transform"
             loading="lazy"
+            onError={(e) => {
+              const target = e.target as HTMLImageElement;
+              if (!target.dataset.retried && product.imageUrl) {
+                target.dataset.retried = "true";
+                setTimeout(() => {
+                  target.src = product.imageUrl + "?retry=" + Date.now();
+                }, 500);
+              }
+            }}
           />
         </div>
         <div className="flex-1 p-3 md:p-4 flex flex-col justify-between min-w-0">

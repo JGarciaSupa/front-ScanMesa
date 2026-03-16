@@ -97,3 +97,26 @@ export async function toggleCategoryActiveAction(id: number, isActive: boolean) 
     return { success: false, error: "Error de conexión" };
   }
 }
+
+export async function reorderCategoriesAction(orderedIds: number[]) {
+  try {
+    const slug = await getTenantSlugServer();
+    const cookieStore = await cookies();
+    const token = cookieStore.get("accessToken")?.value;
+
+    const res = await fetch(`${API_URL}/tenant/categories/reorder`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-schema-tenant": slug,
+        ...(token ? { "Authorization": `Bearer ${token}` } : {})
+      },
+      body: JSON.stringify({ orderedIds }),
+    });
+
+    return await res.json();
+  } catch (error) {
+    console.error("Error in reorderCategoriesAction:", error);
+    return { success: false, error: "Error de conexión" };
+  }
+}

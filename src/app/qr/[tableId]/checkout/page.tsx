@@ -2,14 +2,14 @@
 
 import { useState, useMemo, use, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { 
-  Receipt, 
-  CheckCircle, 
-  ChevronLeft, 
-  Loader2, 
+import {
+  Receipt,
+  CheckCircle,
+  ChevronLeft,
+  Loader2,
   ArrowRight,
   Clock,
-  Bell
+  Bell,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -25,9 +25,13 @@ interface OrderItem {
   guestName: string;
 }
 
-export default function CheckoutPage({ params }: { params: Promise<{ tableId: string }> }) {
+export default function CheckoutPage({
+  params,
+}: {
+  params: Promise<{ tableId: string }>;
+}) {
   const unwrappedParams = use(params);
-  const tableHash = unwrappedParams.tableId; 
+  const tableHash = unwrappedParams.tableId;
   const router = useRouter();
 
   // Estados de sesión
@@ -40,30 +44,33 @@ export default function CheckoutPage({ params }: { params: Promise<{ tableId: st
   // Estados de datos
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   const [isLoadingData, setIsLoadingData] = useState(true);
-  
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
 
   const getTenantSlug = () => {
     if (typeof window === "undefined") return "";
     const host = window.location.hostname;
-    const subDomain = host.split('.')[0] ?? "";
-    return subDomain.replace('-', '_');
+    const subDomain = host.split(".")[0] ?? "";
+    return subDomain.replace("-", "_");
   };
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         const tenantSlug = getTenantSlug();
-        
+
         // 1. Obtener info del Restaurante (Ajustes) y Mesa
         const [settingsRes, tableRes] = await Promise.all([
           fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/tenant/settings`, {
             headers: { "x-schema-tenant": tenantSlug },
           }),
-          fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/tenant/tables/hash/${tableHash}`, {
-            headers: { "x-schema-tenant": tenantSlug },
-          })
+          fetch(
+            `${process.env.NEXT_PUBLIC_API_BASE_URL}/tenant/tables/hash/${tableHash}`,
+            {
+              headers: { "x-schema-tenant": tenantSlug },
+            },
+          ),
         ]);
 
         const settingsData = await settingsRes.json();
@@ -84,15 +91,19 @@ export default function CheckoutPage({ params }: { params: Promise<{ tableId: st
           return;
         }
 
-        const { guestId: sGuestId, sessionId: sSessionId } = JSON.parse(savedSession);
+        const { guestId: sGuestId, sessionId: sSessionId } =
+          JSON.parse(savedSession);
         setGuestId(sGuestId);
         setSessionId(sSessionId);
 
         // 3. Obtener items
         if (sSessionId) {
-          const itemsRes = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/tenant/orders/session/${sSessionId}/items`, {
-            headers: { "x-schema-tenant": tenantSlug },
-          });
+          const itemsRes = await fetch(
+            `${process.env.NEXT_PUBLIC_API_BASE_URL}/tenant/orders/session/${sSessionId}/items`,
+            {
+              headers: { "x-schema-tenant": tenantSlug },
+            },
+          );
           const itemsData = await itemsRes.json();
           if (itemsData.success) {
             setOrderItems(itemsData.data);
@@ -119,22 +130,26 @@ export default function CheckoutPage({ params }: { params: Promise<{ tableId: st
     const initSocket = () => {
       try {
         const tenantSlug = getTenantSlug();
-        const apiUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000";
-        const wsUrl = new URL(`${apiUrl.replace(/^http/, 'ws')}/ws`);
-        wsUrl.searchParams.set('tenantId', tenantSlug);
-        wsUrl.searchParams.set('isGuest', 'true');
+        const apiUrl =
+          process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000";
+        const wsUrl = new URL(`${apiUrl.replace(/^http/, "ws")}/ws`);
+        wsUrl.searchParams.set("tenantId", tenantSlug);
+        wsUrl.searchParams.set("isGuest", "true");
 
         socket = new WebSocket(wsUrl.toString());
 
         socket.onmessage = (event) => {
           try {
             const { event: eventName, data } = JSON.parse(event.data);
-            if (eventName === 'session:closed' && data.sessionId === sessionId) {
+            if (
+              eventName === "session:closed" &&
+              data.sessionId === sessionId
+            ) {
               localStorage.removeItem(`table_session_${tableHash}`);
               router.push(`/qr/${tableHash}`);
             }
           } catch (e) {
-            console.error('[WS Checkout] Error:', e);
+            console.error("[WS Checkout] Error:", e);
           }
         };
 
@@ -142,7 +157,7 @@ export default function CheckoutPage({ params }: { params: Promise<{ tableId: st
           if (mounted) reconnectTimeout = setTimeout(initSocket, 5000);
         };
       } catch (err) {
-        console.error('[WS Checkout] Init error:', err);
+        console.error("[WS Checkout] Init error:", err);
       }
     };
 
@@ -156,30 +171,36 @@ export default function CheckoutPage({ params }: { params: Promise<{ tableId: st
   }, [sessionId, tableHash, router]);
 
   const grandTotal = useMemo(() => {
-    return orderItems.reduce((sum, item) => sum + (Number(item.price) * item.quantity), 0);
+    return orderItems.reduce(
+      (sum, item) => sum + Number(item.price) * item.quantity,
+      0,
+    );
   }, [orderItems]);
 
   const handleCallWaiterToPay = async () => {
     if (!internalTableId) return;
     setIsSubmitting(true);
-    
+
     try {
       const tenantSlug = getTenantSlug();
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/tenant/orders/checkout`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'x-schema-tenant': tenantSlug 
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_BASE_URL}/tenant/orders/checkout`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-schema-tenant": tenantSlug,
+          },
+          body: JSON.stringify({
+            tableId: internalTableId,
+            items: orderItems.map((i) => i.id),
+          }),
         },
-        body: JSON.stringify({
-          tableId: internalTableId,
-          items: orderItems.map(i => i.id),
-        })
-      });
-      
+      );
+
       if (response.ok) {
         setIsSuccess(true);
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+        window.scrollTo({ top: 0, behavior: "smooth" });
       }
     } catch (error) {
       console.error("Error calling waiter:", error);
@@ -192,7 +213,9 @@ export default function CheckoutPage({ params }: { params: Promise<{ tableId: st
     return (
       <div className="flex flex-col items-center justify-center min-h-dvh bg-white">
         <Loader2 className="w-12 h-12 text-slate-900 animate-spin mb-4" />
-        <p className="text-slate-500 font-medium animate-pulse">Cargando tu cuenta...</p>
+        <p className="text-slate-500 font-medium animate-pulse">
+          Cargando tu cuenta...
+        </p>
       </div>
     );
   }
@@ -206,15 +229,23 @@ export default function CheckoutPage({ params }: { params: Promise<{ tableId: st
             <CheckCircle className="w-16 h-16 text-white" />
           </div>
         </div>
-        
-        <h1 className="text-3xl font-black text-slate-900 mb-4 tracking-tight">¡Pedido enviado!</h1>
-        
+
+        <h1 className="text-3xl font-black text-slate-900 mb-4 tracking-tight">
+          ¡Pedido enviado!
+        </h1>
+
         <div className="bg-slate-50 border border-slate-100 p-6 rounded-3xl mb-8 w-full max-w-sm">
-          <p className="text-slate-500 text-sm uppercase font-bold tracking-widest mb-1">Monto total</p>
-          <p className="text-4xl font-black text-slate-900 mb-4">{formatPrice(grandTotal)}</p>
+          <p className="text-slate-500 text-sm uppercase font-bold tracking-widest mb-1">
+            Monto total
+          </p>
+          <p className="text-4xl font-black text-slate-900 mb-4">
+            {formatPrice(grandTotal)}
+          </p>
           <div className="flex items-center justify-center gap-2 text-slate-600 bg-white border border-slate-200 py-3 px-4 rounded-md">
             <Clock className="w-4 h-4 text-amber-500" />
-            <span className="text-sm font-semibold">El camarero está en camino</span>
+            <span className="text-sm font-semibold">
+              El camarero está en camino
+            </span>
           </div>
         </div>
 
@@ -222,10 +253,10 @@ export default function CheckoutPage({ params }: { params: Promise<{ tableId: st
           Por favor, espera un momento. El camarero traerá la cuenta a tu mesa.
         </p>
 
-        <Button 
-          variant="outline" 
+        <Button
+          variant="outline"
           size="lg"
-          className="w-full max-w-sm h-12 rounded-md border-2 border-slate-200 text-slate-900 font-black hover:bg-slate-50 active:scale-95 transition-all" 
+          className="w-full max-w-sm h-12 rounded-md border-2 border-slate-200 text-slate-900 font-black hover:bg-slate-50 active:scale-95 transition-all"
           onClick={() => router.push(`/qr/${tableHash}`)}
         >
           Volver al menú
@@ -239,7 +270,12 @@ export default function CheckoutPage({ params }: { params: Promise<{ tableId: st
       {/* Header */}
       <header className="bg-white/80 backdrop-blur-md px-6 py-6 sticky top-0 z-10 border-b border-slate-100">
         <div className="flex items-center justify-between mb-4">
-          <Button variant="ghost" size="icon" onClick={() => router.back()} className="-ml-3 rounded-full hover:bg-slate-50">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => router.back()}
+            className="-ml-3 rounded-full hover:bg-slate-50"
+          >
             <ChevronLeft className="w-6 h-6 text-slate-900" />
           </Button>
           <Badge className="bg-slate-900 text-white font-bold py-1 px-3 rounded-full border-none">
@@ -247,9 +283,11 @@ export default function CheckoutPage({ params }: { params: Promise<{ tableId: st
           </Badge>
           <div className="w-10"></div>
         </div>
-        
+
         <div className="text-center animate-in slide-in-from-top-4 duration-500">
-          <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-1">Total a pagar</p>
+          <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-1">
+            Total a pagar
+          </p>
           <p className="text-5xl font-black text-slate-900 tracking-tighter">
             {formatPrice(grandTotal)}
           </p>
@@ -260,31 +298,37 @@ export default function CheckoutPage({ params }: { params: Promise<{ tableId: st
         {/* Detalle de Productos */}
         <section className="space-y-4">
           <div className="flex items-center justify-between px-1">
-            <h2 className="text-[13px] font-black text-slate-400 uppercase tracking-widest">Resumen de la mesa</h2>
+            <h2 className="text-[13px] font-black text-slate-400 uppercase tracking-widest">
+              Resumen de la mesa
+            </h2>
           </div>
-          
+
           <div className="bg-slate-50 rounded-[32px] p-2 space-y-1">
-            {orderItems.length > 0 ? orderItems.map((item, idx) => (
-              <div 
-                key={item.id} 
-                className="flex items-center justify-between p-5 bg-white rounded-[24px] border border-slate-100 shadow-sm"
-              >
-                <div className="flex-1 min-w-0 pr-4">
-                  <p className="font-bold text-slate-900 text-sm md:text-base truncate">
-                    {item.quantity}x {item.name}
-                  </p>
-                  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-tighter mt-1">
-                    Ordenado por {item.guestName}
+            {orderItems.length > 0 ? (
+              orderItems.map((item, idx) => (
+                <div
+                  key={item.id}
+                  className="flex items-center justify-between p-5 bg-white rounded-[24px] border border-slate-100 shadow-sm"
+                >
+                  <div className="flex-1 min-w-0 pr-4">
+                    <p className="font-bold text-slate-900 text-sm md:text-base truncate">
+                      {item.quantity}x {item.name}
+                    </p>
+                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-tighter mt-1">
+                      Ordenado por {item.guestName}
+                    </p>
+                  </div>
+                  <p className="font-black text-slate-900 text-sm md:text-base shrink-0">
+                    {formatPrice(Number(item.price) * item.quantity)}
                   </p>
                 </div>
-                <p className="font-black text-slate-900 text-sm md:text-base shrink-0">
-                  {formatPrice(Number(item.price) * item.quantity)}
-                </p>
-              </div>
-            )) : (
+              ))
+            ) : (
               <div className="p-16 text-center">
                 <Receipt className="w-10 h-10 text-slate-200 mx-auto mb-3" />
-                <p className="text-slate-400 font-bold text-sm">No hay consumos registrados</p>
+                <p className="text-slate-400 font-bold text-sm">
+                  No hay consumos registrados
+                </p>
               </div>
             )}
           </div>
@@ -297,7 +341,8 @@ export default function CheckoutPage({ params }: { params: Promise<{ tableId: st
           <div>
             <p className="font-bold text-blue-900 text-sm mb-1">¿Cómo pagar?</p>
             <p className="text-blue-700/70 text-xs leading-relaxed">
-              Al presionar el botón de abajo, avisaremos al mozo que deseas pagar. Él vendrá a tu mesa para procesar el pago.
+              Al presionar el botón de abajo, avisaremos al camarero que deseas
+              pagar. Él vendrá a tu mesa para procesar el pago.
             </p>
           </div>
         </div>
@@ -308,11 +353,13 @@ export default function CheckoutPage({ params }: { params: Promise<{ tableId: st
       {/* Footer Fijo Simplificado */}
       <div className="fixed bottom-0 left-0 right-0 p-6 z-20">
         <div className="max-w-lg mx-auto">
-          <Button 
-            size="lg" 
+          <Button
+            size="lg"
             className={cn(
               "w-full h-12 rounded-md font-black uppercase tracking-widest shadow-2xl",
-              grandTotal === 0 ? "bg-slate-100 text-slate-300" : "bg-slate-900 text-white hover:bg-slate-800"
+              grandTotal === 0
+                ? "bg-slate-100 text-slate-300"
+                : "bg-slate-900 text-white hover:bg-slate-800",
             )}
             onClick={handleCallWaiterToPay}
             disabled={isSubmitting || grandTotal === 0}

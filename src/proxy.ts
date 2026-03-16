@@ -30,8 +30,67 @@ async function refreshTokens(request: NextRequest, refreshToken: string) {
   return null;
 }
 
+/**
+ * Lógica de validación de Tenant (Subdominio)
+ */
+async function validateTenant(request: NextRequest) {
+  const hostname = request.headers.get('host') || '';
+  
+  // Extraer el subdominio
+  const hostParts = hostname.split('.');
+  let subdomain = '';
+
+  if (hostParts.length > 1) {
+    if (hostParts.length === 2 && hostParts[1].startsWith('localhost')) {
+      subdomain = hostParts[0];
+    } else if (hostParts.length >= 3 || (hostParts.length === 2 && !hostParts[1].startsWith('localhost'))) {
+      subdomain = hostParts[0];
+    }
+  }
+
+  // Ignorar subdominios reservados o si no hay subdominio
+  const reservedSubdomains = ['www', 'admin', 'api', 'dashboard', 'localhost'];
+  if (!subdomain || reservedSubdomains.includes(subdomain.toLowerCase())) {
+    return { shouldRedirect: false };
+  }
+
+  // Normalizar el slug
+  const tenantSlug = subdomain.replace(/-/g, '_').toLowerCase();
+
+  try {
+    const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000';
+    const response = await fetch(`${apiBaseUrl}/tenant/auth/validate-tenant/${tenantSlug}`, {
+      next: { revalidate: 300 }
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      if (!data.exists) {
+        return { shouldRedirect: true };
+      }
+    }
+  } catch (error) {
+    console.error(`[Proxy] Error validando tenant ${tenantSlug}:`, error);
+  }
+
+  return { shouldRedirect: false };
+}
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  
+  // 1. Validar existencia del Tenant/Subdominio
+  // Omitimos archivos estáticos y API interna de Next
+  const isInternal = pathname.startsWith('/_next') || pathname.startsWith('/api') || pathname.includes('.') || pathname === '/favicon.ico';
+  
+  if (!isInternal) {
+    const { shouldRedirect } = await validateTenant(request);
+    if (shouldRedirect) {
+      return NextResponse.redirect('https://www.google.com');
+    }
+  }
+
+  // 2. Lógica de Autenticación (Tokens)
   const accessToken = request.cookies.get('accessToken');
   const refreshToken = request.cookies.get('refreshToken');
 
@@ -41,12 +100,10 @@ export async function proxy(request: NextRequest) {
       return NextResponse.redirect(new URL('/dashboard', request.url));
     }
 
-    // Si no hay access token pero hay refresh token, intentar renovar y entrar
     if (refreshToken) {
       const tokens = await refreshTokens(request, refreshToken.value);
       if (tokens) {
         const response = NextResponse.redirect(new URL('/dashboard', request.url));
-
         response.cookies.set("accessToken", tokens.accessToken, {
           httpOnly: true,
           secure: process.env.NODE_ENV === "production",
@@ -54,7 +111,6 @@ export async function proxy(request: NextRequest) {
           maxAge: 15 * 60,
           path: "/",
         });
-
         response.cookies.set("refreshToken", tokens.refreshToken, {
           httpOnly: true,
           secure: process.env.NODE_ENV === "production",
@@ -62,7 +118,6 @@ export async function proxy(request: NextRequest) {
           maxAge: 7 * 24 * 60 * 60,
           path: "/",
         });
-
         return response;
       }
     }
@@ -70,13 +125,11 @@ export async function proxy(request: NextRequest) {
 
   const isProtectedPath = protectedPaths.some(path => pathname.startsWith(path));
 
-  // Lógica de renovación de tokens si el access token expiró pero hay refresh token
+  // Renovación de tokens para rutas protegidas
   if (isProtectedPath && !accessToken && refreshToken) {
     const tokens = await refreshTokens(request, refreshToken.value);
-
     if (tokens) {
       const response = NextResponse.next();
-
       response.cookies.set("accessToken", tokens.accessToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
@@ -84,7 +137,6 @@ export async function proxy(request: NextRequest) {
         maxAge: 15 * 60,
         path: "/",
       });
-
       response.cookies.set("refreshToken", tokens.refreshToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
@@ -92,12 +144,11 @@ export async function proxy(request: NextRequest) {
         maxAge: 7 * 24 * 60 * 60,
         path: "/",
       });
-
       return response;
     }
   }
 
-  // Si la ruta es protegida y no hay forma de autenticar, al login
+  // Redirigir al login si no está autenticado
   if (isProtectedPath && !accessToken) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
@@ -105,12 +156,9 @@ export async function proxy(request: NextRequest) {
   return NextResponse.next();
 }
 
-// Configuración de rutas donde debe ejecutarse este middleware
+// Configuración de rutas
 export const config = {
   matcher: [
-    '/login',
-    '/dashboard/:path*',
-    '/kds/:path*',
-    '/pos/:path*'
+    '/((?!api|_next/static|_next/image|favicon.ico).*)',
   ]
 };

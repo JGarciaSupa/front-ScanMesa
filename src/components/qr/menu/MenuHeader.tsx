@@ -30,11 +30,23 @@ export default function MenuHeader({
 }: MenuHeaderProps) {
   return (
     <header className="relative w-full h-56 md:h-64 lg:h-80 overflow-hidden bg-black/80">
-      <img
-        src={bannerUrl || ""}
-        alt="Restaurant cover"
-        className="absolute inset-0 w-full h-full object-cover opacity-60 mix-blend-overlay"
-      />
+      {bannerUrl && (
+        <img
+          src={bannerUrl}
+          alt="Restaurant cover"
+          className="absolute inset-0 w-full h-full object-cover opacity-60 mix-blend-overlay"
+          loading="lazy"
+          onError={(e) => {
+            const target = e.target as HTMLImageElement;
+            if (!target.dataset.retried) {
+              target.dataset.retried = "true";
+              setTimeout(() => {
+                target.src = bannerUrl + "?retry=" + Date.now();
+              }, 1000);
+            }
+          }}
+        />
+      )}
       <div
         className="absolute inset-0"
         style={{ background: "linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.8) 100%)" }}
@@ -65,7 +77,16 @@ export default function MenuHeader({
       <div className="absolute bottom-0 left-0 right-0 p-5 flex items-end gap-4 z-10">
         <Avatar className="w-16 h-16 md:w-20 md:h-20 border-2 border-white/20 shadow-xl shrink-0 bg-white">
           {logoUrl ? (
-            <AvatarImage src={logoUrl} alt="logo" className="object-cover" />
+            <AvatarImage 
+              src={logoUrl} 
+              alt="logo" 
+              className="object-cover" 
+              onLoadingStatusChange={(status) => {
+                if (status === 'error') {
+                   // Avatar de radix maneja fallback internamente si detecta error
+                }
+              }}
+            />
           ) : (
             <AvatarFallback className="text-2xl font-bold bg-zinc-900 text-white">
               {name[0]?.toUpperCase()}

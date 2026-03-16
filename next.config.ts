@@ -17,6 +17,7 @@ const nextConfig: NextConfig = {
       // También permitir imágenes externas comunes (Unsplash, S3, etc.)
       { protocol: "https", hostname: "images.unsplash.com" },
       { protocol: "https", hostname: "**.amazonaws.com" },
+      { protocol: "https", hostname: "pub-d77cceb873bb498ba90d75a287d1088e.r2.dev" },
     ],
   },
 };

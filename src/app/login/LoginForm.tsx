@@ -38,14 +38,14 @@ export default function LoginForm({ tenant }: LoginFormProps) {
       toast.success(`Acceso concedido a ${tenant.name}`, {
         description: "Redirigiendo al panel de control...",
       });
-      
+
       // Ruteo dinámico basado en rol
       const role = result.user.role.toLowerCase();
-      if (role === 'admin') {
+      if (role === "admin") {
         router.push("/dashboard");
-      } else if (role === 'kitchen') {
+      } else if (role === "kitchen") {
         router.push("/kds");
-      } else if (role === 'waiter') {
+      } else if (role === "waiter") {
         router.push("/pos");
       } else {
         router.push("/dashboard");
@@ -53,19 +53,21 @@ export default function LoginForm({ tenant }: LoginFormProps) {
     } else {
       setIsLoading(false);
       toast.error("Error de inicio de sesión", {
-        description: result.error || "Credenciales inválidas, verifica e intenta de nuevo",
+        description:
+          result.error || "Credenciales inválidas, verifica e intenta de nuevo",
       });
     }
   };
 
-  const defaultBanner = "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=1600&h=900&fit=crop";
+  const defaultBanner =
+    "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=1600&h=900&fit=crop";
 
   return (
     <div className="min-h-screen w-full flex">
       {/* Sección Izquierda (Branding del Restaurante - Solo visible en lg/desktop) */}
       <div className="hidden lg:flex lg:w-1/2 relative shrink-0">
-        <img 
-          src={tenant.bannerUrl || defaultBanner}
+        <img
+          src={defaultBanner}
           alt={`Restaurante ${tenant.name}`}
           className="absolute inset-0 w-full h-full object-cover"
         />
@@ -86,15 +88,25 @@ export default function LoginForm({ tenant }: LoginFormProps) {
         <div className="max-w-md w-full">
           <div className="space-y-6 flex flex-col items-center text-center pb-6">
             <Avatar className="w-28 h-28 border shadow-md">
-              <AvatarImage src={tenant.logoUrl || ""} alt={tenant.name} className="object-cover" />
+              <AvatarImage
+                src={tenant.logoUrl || ""}
+                alt={tenant.name}
+                className="object-cover"
+              />
               <AvatarFallback className="text-3xl bg-primary/10 text-primary font-medium">
                 {tenant.name.substring(0, 2).toUpperCase()}
               </AvatarFallback>
             </Avatar>
             <div className="space-y-1.5">
-              <h2 className="text-2xl font-bold tracking-tight">Bienvenido de vuelta</h2>
+              <h2 className="text-2xl font-bold tracking-tight">
+                Bienvenido de vuelta
+              </h2>
               <p className="text-base text-muted-foreground">
-                Ingresa tus credenciales para acceder al panel de <span className="font-medium text-foreground">{tenant.name}</span>.
+                Ingresa tus credenciales para acceder al panel de{" "}
+                <span className="font-medium text-foreground">
+                  {tenant.name}
+                </span>
+                .
               </p>
             </div>
           </div>
@@ -104,9 +116,9 @@ export default function LoginForm({ tenant }: LoginFormProps) {
                 <Label htmlFor="email">Correo Electrónico</Label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input 
-                    id="email" 
-                    type="email" 
+                  <Input
+                    id="email"
+                    type="email"
                     placeholder="tu@correo.com"
                     className="pl-9"
                     value={email}
@@ -117,15 +129,15 @@ export default function LoginForm({ tenant }: LoginFormProps) {
                   />
                 </div>
               </div>
-              
+
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label htmlFor="password">Contraseña</Label>
                 </div>
                 <div className="relative">
                   <Lock className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input 
-                    id="password" 
+                  <Input
+                    id="password"
                     type={showPassword ? "text" : "password"}
                     placeholder="••••••••"
                     className="pl-9 pr-10"
@@ -151,7 +163,11 @@ export default function LoginForm({ tenant }: LoginFormProps) {
                 </div>
               </div>
 
-              <Button type="submit" className="w-full mt-4" disabled={isLoading}>
+              <Button
+                type="submit"
+                className="w-full mt-4"
+                disabled={isLoading}
+              >
                 {isLoading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -165,7 +181,10 @@ export default function LoginForm({ tenant }: LoginFormProps) {
           </div>
           <div className="flex justify-center pt-8 pb-2">
             <p className="text-[11px] uppercase tracking-wider text-muted-foreground/80 font-medium">
-              Powered by <span className="font-bold text-muted-foreground">YoPido SaaS</span>
+              Powered by{" "}
+              <span className="font-bold text-muted-foreground">
+                YoPido SaaS
+              </span>
             </p>
           </div>
         </div>

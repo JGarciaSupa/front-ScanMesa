@@ -56,9 +56,19 @@ export default function Appearance({
             >
               {logoPreview || settings.logoUrl ? (
                 <img
-                  src={logoPreview || settings.logoUrl}
+                  src={logoPreview || (settings.logoUrl ?? "")}
                   alt="Logo"
                   className="w-full h-full object-cover"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    const originalUrl = logoPreview || settings.logoUrl;
+                    if (!target.dataset.retried && originalUrl) {
+                      target.dataset.retried = "true";
+                      setTimeout(() => {
+                        target.src = originalUrl + "?retry=" + Date.now();
+                      }, 500);
+                    }
+                  }}
                 />
               ) : (
                 <div className="flex flex-col items-center text-muted-foreground">
@@ -94,9 +104,19 @@ export default function Appearance({
             >
               {bannerPreview || settings.bannerUrl ? (
                 <img
-                  src={bannerPreview || settings.bannerUrl}
+                  src={bannerPreview || (settings.bannerUrl ?? "")}
                   alt="Banner"
                   className="w-full h-full object-cover"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    const originalUrl = bannerPreview || settings.bannerUrl;
+                    if (!target.dataset.retried && originalUrl) {
+                      target.dataset.retried = "true";
+                      setTimeout(() => {
+                        target.src = originalUrl + "?retry=" + Date.now();
+                      }, 500);
+                    }
+                  }}
                 />
               ) : (
                 <div className="flex flex-col items-center text-muted-foreground">
