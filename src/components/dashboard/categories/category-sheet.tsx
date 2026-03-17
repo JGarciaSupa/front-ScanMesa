@@ -119,14 +119,14 @@ export function CategorySheet({
             <SheetClose asChild>
               <Button
                 variant="outline"
-                className="w-full sm:w-auto h-11"
+                className="w-full sm:w-auto"
                 disabled={submitting}
               >
                 Cancelar
               </Button>
             </SheetClose>
             <Button
-              className="w-full sm:w-auto h-11"
+              className="w-full sm:w-auto"
               onClick={onSave}
               disabled={submitting}
             >
