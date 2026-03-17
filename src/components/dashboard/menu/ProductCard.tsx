@@ -5,12 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { 
-  AlertCircle, 
-  Image as ImageIcon, 
-  Pencil, 
-  Trash2 
-} from "lucide-react";
+import { AlertCircle, Image as ImageIcon, Pencil, Trash2 } from "lucide-react";
 import { Product } from "./types";
 
 interface ProductCardProps {
@@ -20,11 +15,11 @@ interface ProductCardProps {
   onDelete: (id: number) => Promise<void>;
 }
 
-export function ProductCard({ 
-  product, 
-  onToggleAvailable, 
-  onEdit, 
-  onDelete 
+export function ProductCard({
+  product,
+  onToggleAvailable,
+  onEdit,
+  onDelete,
 }: ProductCardProps) {
   return (
     <Card
@@ -55,11 +50,16 @@ export function ProductCard({
           </div>
         )}
         <div className="absolute top-3 left-3 flex gap-2">
-          <Badge className="max-w-[150px] truncate shadow-sm backdrop-blur-md bg-background/80 text-foreground hover:bg-background/90 border-none">
-            {product.categoryName || "Sin Categoría"}
+          <Badge className="max-w-[150px] shadow-sm backdrop-blur-md bg-background/80 text-foreground hover:bg-background/90 border-none px-2 justify-start">
+            <span className="block truncate">
+              {product.categoryName || "Sin Categoría"}
+            </span>
           </Badge>
           {product.trackStock && product.currentStock <= 0 && (
-            <Badge variant="destructive" className="shadow-sm flex items-center gap-1">
+            <Badge
+              variant="destructive"
+              className="shadow-sm flex items-center gap-1"
+            >
               <AlertCircle className="w-3 h-3" />
               Agotado
             </Badge>
@@ -76,7 +76,7 @@ export function ProductCard({
             ${parseFloat(product.price).toFixed(2)}
           </span>
         </div>
-        
+
         <p className="text-sm text-muted-foreground line-clamp-2 mb-4 flex-1">
           {product.description || "Sin descripción."}
         </p>
@@ -84,9 +84,13 @@ export function ProductCard({
         {/* Stock Info */}
         <div className="mb-4">
           {product.trackStock ? (
-            <span className={`text-xs font-semibold px-2 py-1 rounded-md border shadow-sm ${
-              product.currentStock > 0 ? "bg-secondary text-secondary-foreground" : "bg-destructive/10 text-destructive border-destructive/20"
-            }`}>
+            <span
+              className={`text-xs font-semibold px-2 py-1 rounded-md border shadow-sm ${
+                product.currentStock > 0
+                  ? "bg-secondary text-secondary-foreground"
+                  : "bg-destructive/10 text-destructive border-destructive/20"
+              }`}
+            >
               {product.currentStock} unidades
             </span>
           ) : (
@@ -102,7 +106,9 @@ export function ProductCard({
             <Switch
               id={`available-${product.id}`}
               checked={product.isAvailable}
-              onCheckedChange={() => onToggleAvailable(product.id, product.isAvailable)}
+              onCheckedChange={() =>
+                onToggleAvailable(product.id, product.isAvailable)
+              }
             />
             <Label
               htmlFor={`available-${product.id}`}
