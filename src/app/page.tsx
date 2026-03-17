@@ -1,53 +1,30 @@
-"use client";
+import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 
-import { useEffect } from "react";
+/**
+ * Componente de Servidor (Server Component)
+ * Se ejecuta en el servidor antes de enviar el HTML al cliente.
+ */
+export default async function HomePage() {
+  const headerList = await headers();
+  const host = headerList.get("host") || "";
 
-export default function HomePage() {
-  useEffect(() => {
-    // Lógica para ver el tenant en el cliente
-    const host = window.location.hostname;
-    const subDomain = host.split('.')[0] || "No tenant detected";
-    const tenantSlug = subDomain.replace('-', '_');
-    
-    console.log("------- DEBUG TENANT (CLIENTE) -------");
-    console.log("URL:", window.location.href);
-    console.log("Host:", host);
-    console.log("Tenant Slug:", tenantSlug);
+  // Lógica de detección de Tenant en el Servidor
+  const subDomain = host.split(".")[0] || "no_tenant";
 
-    const fetchDebugInfo = async () => {
-      try {
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000'}/tenant/debug/info`, {
-          headers: {
-            'x-schema-tenant': tenantSlug
-          }
-        });
-        const data = await response.json();
-        console.log("------- DATA DESDE DB (BACKEND) -------");
-        console.dir(data, { depth: null });
-        console.log("---------------------------------------");
-      } catch (error) {
-        console.error("Error al obtener info de DB:", error);
-      }
-    };
+  // Opcional: Solo redirigir si no es localhost o www
+  const isLocal = host.includes("localhost");
+  const isMain = subDomain === "www" || subDomain === "no_tenant";
 
-    if (subDomain && subDomain !== "No tenant detected" && subDomain !== "localhost") {
-      fetchDebugInfo();
-    } else {
-      console.log("No se detectó un subdominio válido para consultar la DB.");
-    }
-    
-    console.log("--------------------------------------");
-  }, []);
+  // Debug en la consola de la TERMINAL (no del navegador)
+  console.log("------- SERVER-SIDE REDIRECT -------");
+  console.log("Host detectado:", host);
+  console.log("Subdominio:", subDomain);
 
+  // Redirección inmediata (Status 307)
+  // Esto detiene la ejecución aquí y manda al usuario a /qr
+  redirect("/qr");
 
-  return (
-    <div className="w-full min-h-screen flex flex-col items-center justify-center px-4 text-center">
-      <h1 className="text-2xl font-bold mb-4">Bienvenido al Sistema de Autogestión</h1>
-      <p className="text-muted-foreground mb-8">Aqui ira la landing page principal.</p>
-      <div className="bg-muted p-4 rounded-lg shadow-sm">
-        <p className="text-sm font-mono">Revisa la consola del navegador para ver el tenant detectado.</p>
-      </div>
-    </div>
-  );
+  // Este retorno nunca se alcanza, pero se deja por estructura
+  return null;
 }
-
