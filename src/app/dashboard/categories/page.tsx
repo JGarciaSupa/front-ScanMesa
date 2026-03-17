@@ -187,7 +187,7 @@ export default function CategoriesPage() {
   };
 
   return (
-    <div className="flex flex-col gap-6 p-6 max-w-6xl mx-auto w-full">
+    <div className="flex flex-col gap-6">
       {/* Componente que muestra el título de la página y el botón para crear una nueva categoría */}
       <CategoryHeader onNewCategory={openNewCategory} />
 

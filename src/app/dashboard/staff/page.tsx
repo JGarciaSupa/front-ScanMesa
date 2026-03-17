@@ -185,7 +185,7 @@ export default function StaffManagementPage() {
   };
 
   return (
-    <div className="flex-1 space-y-6 p-4 md:p-8 pt-6 w-full max-w-7xl mx-auto font-sans">
+    <div className="flex flex-col gap-6 font-sans">
       {/* Componente que muestra el título de la página y el botón para agregar nuevo personal */}
       <StaffHeader onAddStaff={openNewStaff} />
 
