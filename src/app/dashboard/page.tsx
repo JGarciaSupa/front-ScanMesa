@@ -1,42 +1,88 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { DollarSign, Users, ShoppingBag, TrendingUp } from "lucide-react";
+import { DollarSign, Users, ShoppingBag, TrendingUp, Loader2 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-
-const data = [
-  { time: "12:00", sales: 120 },
-  { time: "13:00", sales: 250 },
-  { time: "14:00", sales: 300 },
-  { time: "15:00", sales: 180 },
-  { time: "16:00", sales: 90 },
-  { time: "17:00", sales: 150 },
-  { time: "18:00", sales: 200 },
-  { time: "19:00", sales: 400 },
-  { time: "20:00", sales: 500 },
-  { time: "21:00", sales: 450 },
-  { time: "22:00", sales: 200 },
-];
-
-const recentOrders = [
-  { id: "1", table: "Mesa 4", status: "Pagado", amount: "€45.00", time: "Hace 5 min" },
-  { id: "2", table: "Mesa 2", status: "En curso", amount: "€12.00", time: "Hace 10 min" },
-  { id: "3", table: "Mesa 7", status: "Pagado", amount: "€89.50", time: "Hace 15 min" },
-  { id: "4", table: "Mesa 1", status: "En curso", amount: "€25.00", time: "Hace 20 min" },
-  { id: "5", table: "Mesa 5", status: "En curso", amount: "€54.00", time: "Hace 32 min" },
-];
-
 import { useAuthStore } from "@/store/useAuthStore";
+
+interface DashboardStats {
+  totalSales: number;
+  occupiedTables: number;
+  totalTables: number;
+  completedOrders: number;
+  topProduct: { name: string; quantity: number };
+  salesByHour: Array<{ time: string; sales: number }>;
+  recentActivity: Array<{
+    id: number;
+    saleCode: string;
+    totalAmount: number;
+    issuedAt: string;
+    tableName: string;
+  }>;
+}
 
 export default function DashboardPage() {
   const user = useAuthStore((state) => state.user);
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [loading, setLoading] = useState(true);
+
   const currentDate = new Date().toLocaleDateString("es-ES", {
     weekday: "long",
     year: "numeric",
     month: "long",
     day: "numeric",
   });
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const hostname = window.location.hostname;
+        const subDomain = hostname.split('.')[0] || "";
+        const slug = subDomain.replace(/-/g, '_');
+        
+        const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000';
+        const response = await fetch(`${apiBaseUrl}/tenant/dashboard/stats`, {
+            headers: {
+                'x-schema-tenant': slug
+            }
+        });
+        
+        if (response.ok) {
+          const result = await response.json();
+          if (result.success) {
+            setStats(result.data);
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching dashboard stats:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchStats();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex flex-col h-[400px] items-center justify-center gap-4 animate-pulse">
+        <Loader2 className="h-10 w-10 animate-spin text-slate-300" />
+        <p className="text-slate-400 font-medium">Cargando estadísticas...</p>
+      </div>
+    );
+  }
+
+  const displayStats = stats || {
+    totalSales: 0,
+    occupiedTables: 0,
+    totalTables: 0,
+    completedOrders: 0,
+    topProduct: { name: 'N/A', quantity: 0 },
+    salesByHour: [],
+    recentActivity: []
+  };
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
@@ -47,7 +93,7 @@ export default function DashboardPage() {
             {user ? `¡Hola, ${user.name}! 👋` : 'Resumen de Hoy'}
           </h2>
           <p className="text-sm font-medium text-slate-500 capitalize mt-1">
-            {user ? "Aquí tienes un resumen de lo que sucede hoy." : currentDate}
+            {currentDate}
           </p>
         </div>
       </div>
@@ -56,17 +102,15 @@ export default function DashboardPage() {
       <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
         <Card className="border-slate-200 shadow-sm hover:shadow-md transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-semibold text-slate-600">Ingresos Totales</CardTitle>
+            <CardTitle className="text-sm font-semibold text-slate-600">Ingresos Totales (Hoy)</CardTitle>
             <div className="h-8 w-8 bg-emerald-100 rounded-full flex items-center justify-center">
               <DollarSign className="h-4 w-4 text-emerald-600" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-slate-900">€ 1,250.00</div>
+            <div className="text-3xl font-bold text-slate-900">€ {displayStats.totalSales.toFixed(2)}</div>
             <p className="text-sm text-slate-500 mt-1">
-              <span className="text-emerald-600 font-semibold flex items-center inline-flex">
-                <TrendingUp className="h-3 w-3 mr-1" />+15%
-              </span> vs ayer
+              Ventas del día actual
             </p>
           </CardContent>
         </Card>
@@ -79,21 +123,25 @@ export default function DashboardPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-slate-900">8 <span className="text-xl text-slate-400 font-medium">/ 15</span></div>
-            <p className="text-sm text-slate-500 mt-1">53% de ocupación</p>
+            <div className="text-3xl font-bold text-slate-900">{displayStats.occupiedTables} <span className="text-xl text-slate-400 font-medium">/ {displayStats.totalTables}</span></div>
+            <p className="text-sm text-slate-500 mt-1">
+              {displayStats.totalTables > 0 
+                ? `${((displayStats.occupiedTables / displayStats.totalTables) * 100).toFixed(0)}% de ocupación` 
+                : "No hay mesas registradas"}
+            </p>
           </CardContent>
         </Card>
 
         <Card className="border-slate-200 shadow-sm hover:shadow-md transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-semibold text-slate-600">Pedidos Completados</CardTitle>
+            <CardTitle className="text-sm font-semibold text-slate-600">Pedidos Servidos (Hoy)</CardTitle>
             <div className="h-8 w-8 bg-purple-100 rounded-full flex items-center justify-center">
               <ShoppingBag className="h-4 w-4 text-purple-600" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-slate-900">42</div>
-            <p className="text-sm text-slate-500 mt-1">+8% vs ayer a esta hora</p>
+            <div className="text-3xl font-bold text-slate-900">{displayStats.completedOrders}</div>
+            <p className="text-sm text-slate-500 mt-1">Total de platos servidos hoy</p>
           </CardContent>
         </Card>
 
@@ -105,26 +153,28 @@ export default function DashboardPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-slate-900 truncate" title="Pizza Margarita">Pizza Margarita</div>
-            <p className="text-sm text-slate-500 mt-1">18 porciones vendidas</p>
+            <div className="text-2xl font-bold text-slate-900 truncate" title={displayStats.topProduct.name}>
+                {displayStats.topProduct.name}
+            </div>
+            <p className="text-sm text-slate-500 mt-1">{displayStats.topProduct.quantity} unidades vendidas</p>
           </CardContent>
         </Card>
       </div>
 
       {/* Sección Inferior */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {/* Gráfico (Ocupa 2/3 en Desktop) */}
+        {/* Gráfico */}
         <Card className="col-span-1 lg:col-span-2 border-slate-200 shadow-sm">
           <CardHeader>
             <CardTitle className="text-lg font-bold text-slate-900">Ventas por Hora</CardTitle>
             <CardDescription className="text-slate-500">
-              Resumen de ingresos desde la apertura (12:00) hasta el cierre.
+              Resumen de ingresos generados hoy.
             </CardDescription>
           </CardHeader>
           <CardContent className="px-2 sm:px-6">
             <div className="h-[320px] w-full mt-4">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <ResponsiveContainer width="100%" height={320} minWidth={0} minHeight={0}>
+                <BarChart data={displayStats.salesByHour.length > 0 ? displayStats.salesByHour : [{time: '00:00', sales: 0}]} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                   <XAxis 
                     dataKey="time" 
@@ -161,34 +211,34 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        {/* Actividad Reciente (Ocupa 1/3 en Desktop) */}
+        {/* Actividad Reciente */}
         <Card className="col-span-1 border-slate-200 shadow-sm flex flex-col">
           <CardHeader>
-            <CardTitle className="text-lg font-bold text-slate-900">Actividad Reciente</CardTitle>
+            <CardTitle className="text-lg font-bold text-slate-900">Últimas Ventas</CardTitle>
             <CardDescription className="text-slate-500">
-              Últimos pedidos gestionados.
+              Últimas facturas emitidas.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex-1">
             <div className="space-y-6">
-              {recentOrders.map((order) => (
-                <div key={order.id} className="flex items-center justify-between group">
-                  <div className="space-y-1">
-                    <p className="text-sm font-bold leading-none text-slate-900">{order.table}</p>
-                    <p className="text-xs font-medium text-slate-500">{order.time}</p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="font-semibold text-sm text-slate-900">{order.amount}</div>
-                    <Badge variant={order.status === "Pagado" ? "default" : "secondary"} className={
-                      order.status === "Pagado" 
-                        ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border-none font-semibold px-2.5 py-0.5" 
-                        : "bg-amber-100 text-amber-700 hover:bg-amber-200 border-none font-semibold px-2.5 py-0.5"
-                    }>
-                      {order.status}
-                    </Badge>
-                  </div>
-                </div>
-              ))}
+              {displayStats.recentActivity.length > 0 ? (
+                displayStats.recentActivity.map((activity) => (
+                    <div key={activity.id} className="flex items-center justify-between group">
+                      <div className="space-y-1">
+                        <p className="text-sm font-bold leading-none text-slate-900">{activity.tableName}</p>
+                        <p className="text-xs font-medium text-slate-500">{new Date(activity.issuedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <div className="font-semibold text-sm text-slate-900">€{activity.totalAmount.toFixed(2)}</div>
+                        <Badge variant="default" className="bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border-none font-semibold px-2.5 py-0.5">
+                          {activity.saleCode}
+                        </Badge>
+                      </div>
+                    </div>
+                  ))
+              ) : (
+                <p className="text-sm text-slate-500 text-center py-8">No hay actividad reciente</p>
+              )}
             </div>
           </CardContent>
         </Card>
