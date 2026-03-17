@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { AlertCircle, Image as ImageIcon, Pencil, Trash2 } from "lucide-react";
 import { Product } from "./types";
+import { formatPrice } from "@/lib/utils";
 
 interface ProductCardProps {
   product: Product;
@@ -73,7 +74,7 @@ export function ProductCard({
             {product.name}
           </h3>
           <span className="font-bold text-lg text-primary whitespace-nowrap">
-            ${parseFloat(product.price).toFixed(2)}
+            {formatPrice(product.price)}
           </span>
         </div>
 
