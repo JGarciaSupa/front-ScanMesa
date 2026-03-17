@@ -384,7 +384,12 @@ export default function ClientMenu({ tableId, tenantData }: ClientMenuProps) {
 
             showToast("Mesa lista", "success");
           } else {
-            showToast("Error", "error");
+            showToast(result.error || "Error", "error");
+            if (result.error === "La mesa ya tiene una sesión activa") {
+              setTimeout(() => {
+                window.location.reload();
+              }, 1500);
+            }
           }
         } else {
           if (codeInput.trim().length < 6 && !isCodePreFilled) {
@@ -421,7 +426,12 @@ export default function ClientMenu({ tableId, tenantData }: ClientMenuProps) {
             showToast("Bienvenido", "success");
           } else {
             setCodeInput("");
-            showToast("Código inválido", "error");
+            showToast(result.error || "Código inválido", "error");
+            if (result.error === "Código de mesa inválido o sesión cerrada") {
+              setTimeout(() => {
+                window.location.reload();
+              }, 1500);
+            }
           }
         }
       } catch (error) {
