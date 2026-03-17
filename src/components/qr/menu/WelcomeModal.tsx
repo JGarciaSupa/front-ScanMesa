@@ -18,6 +18,7 @@ interface WelcomeModalProps {
   setCodeInput: (val: string) => void;
   isLoading: boolean;
   handleJoin: (e: React.FormEvent) => void;
+  locationStatus?: 'idle' | 'checking' | 'authorized' | 'denied' | 'out_of_range';
 }
 
 export default function WelcomeModal({
@@ -32,6 +33,7 @@ export default function WelcomeModal({
   setCodeInput,
   isLoading,
   handleJoin,
+  locationStatus,
 }: WelcomeModalProps) {
   return (
     <Dialog open={isOpen}>
@@ -88,9 +90,45 @@ export default function WelcomeModal({
             </div>
           )}
 
+          {locationStatus === 'out_of_range' && (
+            <div className="bg-red-50 text-red-700 p-4 rounded-xl flex flex-col items-center gap-2 text-sm font-medium border border-red-200/50">
+                <div className="flex items-center gap-2">
+                    <span className="text-lg">📍</span>
+                    <span className="font-bold">Fuera del rango permitido</span>
+                </div>
+                <p className="text-center opacity-80 pb-2">Debes estar físicamente en el restaurante para realizar pedidos o reservar.</p>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="bg-white border-red-200 text-red-700 hover:bg-red-50"
+                  onClick={() => window.location.reload()}
+                >
+                  Reintentar verificación
+                </Button>
+            </div>
+          )}
+
+          {locationStatus === 'denied' && (
+            <div className="bg-amber-50 text-amber-700 p-4 rounded-xl flex flex-col items-center gap-2 text-sm font-medium border border-amber-200/50">
+                <div className="flex items-center gap-2">
+                    <span className="text-lg">⚠️</span>
+                    <span className="font-bold">Acceso a GPS denegado</span>
+                </div>
+                <p className="text-center opacity-80 pb-2">Para continuar, por favor permite el acceso a tu ubicación en los ajustes de tu navegador.</p>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="bg-white border-amber-200 text-amber-700 hover:bg-amber-50"
+                  onClick={() => window.location.reload()}
+                >
+                  Intentar de nuevo
+                </Button>
+            </div>
+          )}
+
           <Button
             type="submit"
-            disabled={isLoading || !nameInput.trim() || (isTableOccupied && !isCodePreFilled && codeInput.length < 6)}
+            disabled={isLoading || !nameInput.trim() || (isTableOccupied && !isCodePreFilled && codeInput.length < 6) || locationStatus === 'out_of_range' || locationStatus === 'denied'}
             className="h-12 rounded-xl text-lg font-semibold w-full mt-2"
           >
             {isLoading ? "Procesando..." : (isTableOccupied ? "Unirse a la mesa" : "Abrir nueva mesa")}

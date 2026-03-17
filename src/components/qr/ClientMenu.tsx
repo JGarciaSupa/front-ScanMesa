@@ -21,10 +21,28 @@ interface ClientMenuProps {
       logoUrl: string | null;
       bannerUrl: string | null;
       currency: string | null;
+      latitude: number | null;
+      longitude: number | null;
+      allowedRadiusMeters: number | null;
+      radiusEnabled: boolean;
     };
     categories: { id: number; name: string }[];
     products: Product[];
   };
+}
+
+function getDistanceInMeters(lat1: number, lon1: number, lat2: number, lon2: number) {
+  const R = 6371e3;
+  const dLat = (lat2 - lat1) * (Math.PI / 180);
+  const dLon = (lon2 - lon1) * (Math.PI / 180);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * (Math.PI / 180)) *
+      Math.cos(lat2 * (Math.PI / 180)) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
 }
 
 export default function ClientMenu({ tableId, tenantData }: ClientMenuProps) {
@@ -47,6 +65,8 @@ export default function ClientMenu({ tableId, tenantData }: ClientMenuProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [isSessionChecking, setIsSessionChecking] = useState(true);
   const [selectedDetailProduct, setSelectedDetailProduct] = useState<Product | null>(null);
+  const [locationStatus, setLocationStatus] = useState<'idle' | 'checking' | 'authorized' | 'denied' | 'out_of_range'>('idle');
+  const [distance, setDistance] = useState<number | null>(null);
 
   const getTenantSlug = () => {
     const host = window.location.hostname;
@@ -110,8 +130,52 @@ export default function ClientMenu({ tableId, tenantData }: ClientMenuProps) {
       }
     };
 
+    const checkInitialLocation = async () => {
+      // Solo validamos ubicación si el radio está habilitado y el usuario no ha entrado aún
+      if (tenantData.info.radiusEnabled && !guestName) {
+        setLocationStatus('checking');
+        try {
+          const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+            if (!navigator.geolocation) {
+              reject(new Error("Browser not supported"));
+              return;
+            }
+            navigator.geolocation.getCurrentPosition(resolve, reject, {
+              enableHighAccuracy: true,
+              timeout: 10000,
+            });
+          });
+
+          const { latitude: userLat, longitude: userLon } = position.coords;
+          const restLat = typeof tenantData.info.latitude === "string" ? parseFloat(tenantData.info.latitude) : tenantData.info.latitude;
+          const restLon = typeof tenantData.info.longitude === "string" ? parseFloat(tenantData.info.longitude) : tenantData.info.longitude;
+          const allowedRadius = tenantData.info.allowedRadiusMeters || 50;
+
+          if (restLat !== null && restLon !== null && !isNaN(restLat) && !isNaN(restLon)) {
+            const dist = getDistanceInMeters(userLat, userLon, restLat, restLon);
+            setDistance(dist);
+            if (dist <= allowedRadius) {
+              setLocationStatus('authorized');
+            } else {
+              setLocationStatus('out_of_range');
+            }
+          } else {
+            // Si el restaurante no tiene coordenadas configuradas pero el radiusEnabled está en true
+            // permitimos por ahora para no bloquear, o podrías marcar como error de config.
+            setLocationStatus('authorized');
+          }
+        } catch (error: any) {
+          console.error("GPS mount error:", error);
+          setLocationStatus('denied');
+        }
+      } else {
+        setLocationStatus('authorized');
+      }
+    };
+
     fetchTableInfo();
     checkSession();
+    checkInitialLocation();
 
     if (typeof window !== "undefined") {
       const urlParams = new URLSearchParams(window.location.search);
@@ -203,11 +267,13 @@ export default function ClientMenu({ tableId, tenantData }: ClientMenuProps) {
     };
   }, [guestName, sessionId, tableId, internalTableId, guestId]);
 
-  if (isSessionChecking) {
+  if (isSessionChecking || (tenantData.info.radiusEnabled && locationStatus === 'checking')) {
     return (
       <div className="w-full min-h-screen bg-[#FAF8F4] flex flex-col items-center justify-center p-6 text-center">
         <div className="h-10 w-10 border-4 border-zinc-200 border-t-zinc-900 rounded-full animate-spin mb-4" />
-        <p className="text-zinc-500 font-medium">Cargando mesa...</p>
+        <p className="text-zinc-500 font-medium">
+          {locationStatus === 'checking' ? "Verificando ubicación..." : "Cargando mesa..."}
+        </p>
       </div>
     );
   }
@@ -219,6 +285,70 @@ export default function ClientMenu({ tableId, tenantData }: ClientMenuProps) {
     if (nameInput.trim().length > 0) {
       setIsLoading(true);
       try {
+        // Geolocation validation if restriction is enabled
+        if (tenantData.info.radiusEnabled) {
+          try {
+            const position = await new Promise<GeolocationPosition>(
+              (resolve, reject) => {
+                if (!navigator.geolocation) {
+                  reject(new Error("Geolocation not supported"));
+                  return;
+                }
+                navigator.geolocation.getCurrentPosition(resolve, reject, {
+                  enableHighAccuracy: true,
+                  timeout: 8000,
+                });
+              },
+            );
+
+            const { latitude: userLat, longitude: userLon } = position.coords;
+
+            // Ensure coordinates are numbers (numeric fields often come as strings)
+            const restLat =
+              typeof tenantData.info.latitude === "string"
+                ? parseFloat(tenantData.info.latitude)
+                : tenantData.info.latitude;
+            const restLon =
+              typeof tenantData.info.longitude === "string"
+                ? parseFloat(tenantData.info.longitude)
+                : tenantData.info.longitude;
+
+            const allowedRadius = tenantData.info.allowedRadiusMeters || 50;
+
+            if (
+              restLat !== null &&
+              restLon !== null &&
+              !isNaN(restLat) &&
+              !isNaN(restLon)
+            ) {
+              const distance = getDistanceInMeters(
+                userLat,
+                userLon,
+                restLat,
+                restLon,
+              );
+
+              if (distance > allowedRadius) {
+                showToast(
+                  `Estás a ${Math.round(distance)}m. Debes estar a menos de ${allowedRadius}m del local.`,
+                  "error",
+                );
+                setIsLoading(false);
+                return;
+              }
+            }
+          } catch (error: any) {
+            console.error("Geolocation error:", error);
+            const msg =
+              error.code === 1
+                ? "Para pedir, debes permitir el acceso a tu ubicación GPS."
+                : "No pudimos verificar tu ubicación. Asegúrate de tener el GPS activo.";
+            showToast(msg, "error");
+            setIsLoading(false);
+            return;
+          }
+        }
+
         const tenantSlug = getTenantSlug();
         if (!isTableOccupied) {
           const generatedCode = Math.floor(100000 + Math.random() * 900000).toString();
@@ -448,6 +578,7 @@ export default function ClientMenu({ tableId, tenantData }: ClientMenuProps) {
         setCodeInput={setCodeInput}
         isLoading={isLoading}
         handleJoin={handleJoin}
+        locationStatus={locationStatus}
       />
 
       {/** Encabezado del menú que muestra el banner, logo y nombre del restaurante, junto con info de la mesa. */}

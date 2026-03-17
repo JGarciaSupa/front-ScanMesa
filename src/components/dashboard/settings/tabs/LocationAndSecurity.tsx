@@ -65,15 +65,6 @@ export default function LocationAndSecurity({
   const [showConfirmGeo, setShowConfirmGeo] = useState(false);
 
   const handleGetLocation = () => {
-    const isDev = process.env.NEXT_PUBLIC_MODE === "developer";
-
-    if (isDev) {
-      handleChange("latitude", -12.04318); // Default to a neutral coordinate
-      handleChange("longitude", -77.02824);
-      setGeoError(null);
-      toast.success("[Dev Mode] Ubicación simulada correctamente");
-      return;
-    }
 
     // Check if the context is secure (HTTPS or localhost)
     if (typeof window !== "undefined" && !window.isSecureContext) {
@@ -114,9 +105,7 @@ export default function LocationAndSecurity({
     );
   };
 
-  const isDev = process.env.NEXT_PUBLIC_MODE === "developer";
-  const hasLocation =
-    (settings.latitude !== 0 && settings.longitude !== 0) || isDev;
+  const hasLocation = settings.latitude !== 0 && settings.longitude !== 0;
 
   return (
     <Card className="shadow-sm">
