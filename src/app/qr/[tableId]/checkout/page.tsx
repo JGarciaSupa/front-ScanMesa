@@ -130,15 +130,21 @@ export default function CheckoutPage({
     const initSocket = () => {
       try {
         const tenantSlug = getTenantSlug();
-        const apiUrl =
-          process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000";
+        const apiUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000";
         const wsUrl = new URL(`${apiUrl.replace(/^http/, "ws")}/ws`);
         wsUrl.searchParams.set("tenantId", tenantSlug);
         wsUrl.searchParams.set("isGuest", "true");
 
+        if (socket) {
+          socket.onclose = null;
+          socket.onmessage = null;
+          socket.close();
+        }
+
         socket = new WebSocket(wsUrl.toString());
 
         socket.onmessage = (event) => {
+          if (!mounted) return;
           try {
             const { event: eventName, data } = JSON.parse(event.data);
             if (
@@ -154,10 +160,15 @@ export default function CheckoutPage({
         };
 
         socket.onclose = () => {
-          if (mounted) reconnectTimeout = setTimeout(initSocket, 5000);
+          if (mounted) reconnectTimeout = setTimeout(initSocket, 3000);
+        };
+
+        socket.onerror = (err) => {
+          console.error("[WS Checkout] Error:", err);
         };
       } catch (err) {
         console.error("[WS Checkout] Init error:", err);
+        if (mounted) reconnectTimeout = setTimeout(initSocket, 5000);
       }
     };
 
@@ -166,7 +177,10 @@ export default function CheckoutPage({
     return () => {
       mounted = false;
       clearTimeout(reconnectTimeout);
-      if (socket) socket.close();
+      if (socket) {
+        socket.onclose = null;
+        socket.close();
+      }
     };
   }, [sessionId, tableHash, router]);
 

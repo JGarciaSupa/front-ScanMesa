@@ -203,9 +203,23 @@ export default function ClientMenu({ tableId, tenantData }: ClientMenuProps) {
         wsUrl.searchParams.set('tenantId', tenantSlug);
         wsUrl.searchParams.set('isGuest', 'true');
 
+        if (socket) {
+          socket.onclose = null;
+          socket.onmessage = null;
+          socket.onopen = null;
+          socket.close();
+        }
+
         socket = new WebSocket(wsUrl.toString());
 
+        socket.onopen = () => {
+          if (!mounted) return;
+          console.log('[WS Cliente] Conectado');
+          // Podríamos re-verificar la sesión aquí si quisiéramos ser ultra-robustos
+        };
+
         socket.onmessage = (event) => {
+          if (!mounted) return;
           try {
             const { event: eventName, data } = JSON.parse(event.data);
             
@@ -246,7 +260,7 @@ export default function ClientMenu({ tableId, tenantData }: ClientMenuProps) {
 
         socket.onclose = () => {
           if (mounted) {
-            reconnectTimeout = setTimeout(initSocket, 5000);
+            reconnectTimeout = setTimeout(initSocket, 3000);
           }
         };
 
@@ -255,6 +269,7 @@ export default function ClientMenu({ tableId, tenantData }: ClientMenuProps) {
         };
       } catch (error) {
         console.error('[WS Cliente] Fallo al inicializar socket:', error);
+        if (mounted) reconnectTimeout = setTimeout(initSocket, 5000);
       }
     };
 
@@ -263,7 +278,10 @@ export default function ClientMenu({ tableId, tenantData }: ClientMenuProps) {
     return () => {
       mounted = false;
       clearTimeout(reconnectTimeout);
-      if (socket) socket.close();
+      if (socket) {
+        socket.onclose = null;
+        socket.close();
+      }
     };
   }, [guestName, sessionId, tableId, internalTableId, guestId]);
 

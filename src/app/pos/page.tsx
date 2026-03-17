@@ -168,79 +168,119 @@ export default function PosPage() {
     let reconnectTimeout: any;
 
     async function initSocket() {
-      const config = await getSocketConfigAction();
-      if (!mounted) return;
-      if (socketRef.current) socketRef.current.close();
-
-      const wsUrl = new URL(`${config.url.replace('http', 'ws')}/ws`);
-      wsUrl.searchParams.set('token', config.token || '');
-      wsUrl.searchParams.set('tenantId', config.slug || '');
-
-      const socket = new WebSocket(wsUrl.toString());
-      socketRef.current = socket;
-
-      socket.onopen = () => setIsConnected(true);
-      socket.onclose = () => {
-        setIsConnected(false);
-        if (mounted) reconnectTimeout = setTimeout(initSocket, 3000);
-      };
-
-      socket.onmessage = (event) => {
-        try {
-          const { event: eventName, data } = JSON.parse(event.data);
-          
-          /**
-           * Eventos que requieren refrescar el mapa de mesas:
-           * - Apertura/Cierre de sesión
-           * - Creación de orden
-           * - Llamadas de mozo
-           */
-          if (
-            eventName === 'table:opened' || 
-            eventName === 'session:closed' || 
-            eventName === 'order:created' || 
-            eventName === 'waiter:called' || 
-            eventName === 'waiter:resolved'
-          ) {
-            fetchTables();
-            const sessionId = data.sessionId || (Array.isArray(data) ? data[0]?.sessionId : null);
-            if (eventName === 'order:created') {
-              sendPushNotification("¡Nuevo Pedido!", "Hay una nueva orden en camino.");
-              addAlert({ title: "¡Nuevo Pedido!", description: "Hay una nueva orden en camino.", type: "info" });
-            }
-            if (eventName === 'order:created' && sessionId && selectedSessionIdRef.current === sessionId) {
-              fetchSessionItems(sessionId);
-            }
-          }
-
-          if (eventName === 'order-item:served') {
-            setTableItems((prev) => prev.map((item) => item.id === data.itemId ? { ...item, kitchenStatus: data.status } : item));
-            toast.info(`¡Plato listo para servir!`);
-            sendPushNotification("¡Plato listo!", "Un pedido está listo para ser servido.");
-            addAlert({ title: "¡Plato listo!", description: "Un pedido está listo para ser servido.", type: "success" });
-          }
-
-          if (eventName === 'waiter:called') {
-            toast.warning(`¡Llamada de mozo!`, { description: `Mesa ${data.tableId}: ${data.reason}`, duration: 10000 });
-            sendPushNotification("¡Llamada de Camarero!", `Mesa ${data.tableId}: ${data.reason}`);
-            addAlert({ title: "¡Llamada de Camarero!", description: `Mesa ${data.tableId}: ${data.reason}`, type: "warning" });
-          }
-
-          if (eventName === 'checkout:requested') {
-            toast.success(`¡Solicitud de cuenta!`, { description: `Mesa ${data.tableId} solicita pagar.`, duration: 10000 });
-            sendPushNotification("¡Solicitud de Cuenta!", `Mesa ${data.tableId} solicita su cuenta.`);
-            addAlert({ title: "¡Solicitud de Cuenta!", description: `Mesa ${data.tableId} solicita su cuenta.`, type: "success" });
-            fetchTables();
-          }
-        } catch (e) {
-          console.error(e);
+      try {
+        const config = await getSocketConfigAction();
+        if (!mounted) return;
+        
+        // Antes de crear uno nuevo, nos aseguramos de limpiar el anterior
+        if (socketRef.current) {
+          socketRef.current.onclose = null;
+          socketRef.current.onmessage = null;
+          socketRef.current.onopen = null;
+          socketRef.current.close();
         }
-      };
+
+        const wsUrl = new URL(`${config.url.replace('http', 'ws')}/ws`);
+        wsUrl.searchParams.set('token', config.token || '');
+        wsUrl.searchParams.set('tenantId', config.slug || '');
+
+        const socket = new WebSocket(wsUrl.toString());
+        socketRef.current = socket;
+
+        socket.onopen = () => {
+          if (!mounted) return;
+          setIsConnected(true);
+          // Refrescar datos al conectar/reconectar para no perder actualizaciones
+          fetchTables();
+        };
+
+        socket.onclose = () => {
+          setIsConnected(false);
+          if (mounted) {
+            // Reintento exponencial o fijo. Bajamos a 2s para ser más ágiles
+            reconnectTimeout = setTimeout(initSocket, 2000);
+          }
+        };
+
+        socket.onerror = (error) => {
+          console.error("WebSocket Error:", error);
+          // onclose se encargará de la reconexión
+        };
+
+        socket.onmessage = (event) => {
+          if (!mounted) return;
+          try {
+            const { event: eventName, data } = JSON.parse(event.data);
+            
+            if (
+              eventName === 'table:opened' || 
+              eventName === 'session:closed' || 
+              eventName === 'order:created' || 
+              eventName === 'waiter:called' || 
+              eventName === 'waiter:resolved'
+            ) {
+              fetchTables();
+              const sessionId = data.sessionId || (Array.isArray(data) ? data[0]?.sessionId : null);
+              if (eventName === 'order:created') {
+                sendPushNotification("¡Nuevo Pedido!", "Hay una nueva orden en camino.");
+                addAlert({ title: "¡Nuevo Pedido!", description: "Hay una nueva orden en camino.", type: "info" });
+              }
+              if (eventName === 'order:created' && sessionId && selectedSessionIdRef.current === sessionId) {
+                fetchSessionItems(sessionId);
+              }
+            }
+
+            if (eventName === 'order-item:served') {
+              setTableItems((prev) => prev.map((item) => item.id === data.itemId ? { ...item, kitchenStatus: data.status } : item));
+              toast.info(`¡Plato listo para servir!`);
+              sendPushNotification("¡Plato listo!", "Un pedido está listo para ser servido.");
+              addAlert({ title: "¡Plato listo!", description: "Un pedido está listo para ser servido.", type: "success" });
+            }
+
+            if (eventName === 'waiter:called') {
+              toast.warning(`¡Llamada de mozo!`, { description: `Mesa ${data.tableId}: ${data.reason}`, duration: 10000 });
+              sendPushNotification("¡Llamada de Camarero!", `Mesa ${data.tableId}: ${data.reason}`);
+              addAlert({ title: "¡Llamada de Camarero!", description: `Mesa ${data.tableId}: ${data.reason}`, type: "warning" });
+            }
+
+            if (eventName === 'checkout:requested') {
+              toast.success(`¡Solicitud de cuenta!`, { description: `Mesa ${data.tableId} solicita pagar.`, duration: 10000 });
+              sendPushNotification("¡Solicitud de Cuenta!", `Mesa ${data.tableId} solicita su cuenta.`);
+              addAlert({ title: "¡Solicitud de Cuenta!", description: `Mesa ${data.tableId} solicita su cuenta.`, type: "success" });
+              fetchTables();
+            }
+          } catch (e) {
+            console.error("Error parsing WS message:", e);
+          }
+        };
+      } catch (err) {
+        console.error("Error initializing socket:", err);
+        if (mounted) reconnectTimeout = setTimeout(initSocket, 5000);
+      }
     }
 
     initSocket();
     fetchTables();
-    return () => { mounted = false; clearTimeout(reconnectTimeout); if (socketRef.current) socketRef.current.close(); };
+
+    // Manejador para recuperar la conexión cuando el usuario vuelve a la pestaña
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && (!socketRef.current || socketRef.current.readyState !== WebSocket.OPEN)) {
+        console.log('[POS] Tab enfocada, refrescando conexión...');
+        initSocket();
+        fetchTables();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => { 
+      mounted = false; 
+      clearTimeout(reconnectTimeout); 
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      if (socketRef.current) {
+        socketRef.current.onclose = null;
+        socketRef.current.close();
+      }
+    };
   }, [fetchTables, addAlert]);
 
   // --- Manejadores de Eventos ---

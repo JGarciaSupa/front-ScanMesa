@@ -84,78 +84,89 @@ export default function KDSPage() {
     let reconnectTimeout: any;
 
     async function initSocket() {
-      const config = await getSocketConfigAction();
+      try {
+        const config = await getSocketConfigAction();
+        if (!mounted) return;
 
-      if (!mounted) return;
+        if (socketRef.current) {
+          socketRef.current.onclose = null;
+          socketRef.current.onmessage = null;
+          socketRef.current.onopen = null;
+          socketRef.current.close();
+        }
 
-      if (socketRef.current) {
-        socketRef.current.close();
+        // En WebSocket nativo pasamos token y tenantId por la URL
+        const wsUrl = new URL(`${config.url.replace("http", "ws")}/ws`);
+        wsUrl.searchParams.set("token", config.token || "");
+        wsUrl.searchParams.set("tenantId", config.slug || "");
+
+        const socket = new WebSocket(wsUrl.toString());
+        socketRef.current = socket;
+
+        socket.onopen = () => {
+          if (!mounted) return;
+          setIsConnected(true);
+          // Al conectar o reconectar, refrescamos pedidos por si perdimos algo
+          fetchOrders();
+        };
+
+        socket.onclose = () => {
+          setIsConnected(false);
+          // Reintentar conexión rápido tras 2 segundos
+          if (mounted) {
+            reconnectTimeout = setTimeout(initSocket, 2000);
+          }
+        };
+
+        socket.onerror = (error) => {
+          console.error("[WS KDS] Error de conexión:", error);
+        };
+
+        socket.onmessage = (event) => {
+          if (!mounted) return;
+          try {
+            const { event: eventName, data } = JSON.parse(event.data);
+
+            if (eventName === "order:created") {
+              toast("Nuevo pedido recibido", {
+                description: `Mesa: ${data.table || "Principal"}` as any,
+                action: {
+                  label: "Ver",
+                  onClick: () => fetchOrders(),
+                },
+              });
+              fetchOrders();
+            }
+
+            if (eventName === "order-item:served") {
+              setOrders((prev) =>
+                prev.map((ord) => {
+                  if (ord.sessionId !== data.sessionId) return ord;
+                  return {
+                    ...ord,
+                    items: ord.items.map((item) =>
+                      item.id === data.itemId
+                        ? { ...item, isReady: data.status === "served" }
+                        : item,
+                    ),
+                  };
+                }),
+              );
+            }
+
+            if (eventName === "order:completed") {
+              setOrders((prev) =>
+                prev.filter((ord) => ord.sessionId !== data.sessionId),
+              );
+            }
+          } catch (e) {
+            console.error("[WS KDS] Error procesando mensaje:", e);
+          }
+        };
+      } catch (err) {
+        console.error("[WS KDS] Error inicializando socket:", err);
+        if (mounted) reconnectTimeout = setTimeout(initSocket, 5000);
       }
-
-      // En WebSocket nativo pasamos token y tenantId por la URL
-      const wsUrl = new URL(`${config.url.replace("http", "ws")}/ws`);
-      wsUrl.searchParams.set("token", config.token || "");
-      wsUrl.searchParams.set("tenantId", config.slug || "");
-
-      const socket = new WebSocket(wsUrl.toString());
-      socketRef.current = socket;
-
-      socket.onopen = () => {
-        setIsConnected(true);
-      };
-
-      socket.onclose = () => {
-        setIsConnected(false);
-        // Reintentar conexión tras 3 segundos
-        if (mounted) {
-          reconnectTimeout = setTimeout(initSocket, 3000);
-        }
-      };
-
-      socket.onerror = (error) => {
-        console.error("[WS Nativo] Error de conexión");
-      };
-
-      socket.onmessage = (event) => {
-        try {
-          const { event: eventName, data } = JSON.parse(event.data);
-
-          if (eventName === "order:created") {
-            toast("Nuevo pedido recibido", {
-              description: `Mesa: ${data.table || "Principal"}` as any,
-              action: {
-                label: "Ver",
-                onClick: () => fetchOrders(),
-              },
-            });
-            fetchOrders();
-          }
-
-          if (eventName === "order-item:served") {
-            setOrders((prev) =>
-              prev.map((ord) => {
-                if (ord.sessionId !== data.sessionId) return ord;
-                return {
-                  ...ord,
-                  items: ord.items.map((item) =>
-                    item.id === data.itemId
-                      ? { ...item, isReady: data.status === "served" }
-                      : item,
-                  ),
-                };
-              }),
-            );
-          }
-
-          if (eventName === "order:completed") {
-            setOrders((prev) =>
-              prev.filter((ord) => ord.sessionId !== data.sessionId),
-            );
-          }
-        } catch (e) {
-          // Error procesando mensaje
-        }
-      };
     }
 
     initSocket();
@@ -165,6 +176,7 @@ export default function KDSPage() {
       mounted = false;
       clearTimeout(reconnectTimeout);
       if (socketRef.current) {
+        socketRef.current.onclose = null;
         socketRef.current.close();
       }
     };
