@@ -17,10 +17,10 @@ export interface Settings {
   logoUrl: string;
   bannerUrl: string;
   currency: string;
-  defaultTaxRate: number;
   latitude: number;
   longitude: number;
   allowedRadiusMeters: number;
+  radiusEnabled: boolean;
   subscriptionStart: string;
   subscriptionEnd: string;
 }
@@ -34,10 +34,10 @@ export default function SettingsPage() {
     logoUrl: "",
     bannerUrl: "",
     currency: "",
-    defaultTaxRate: 0,
     latitude: 0,
     longitude: 0,
     allowedRadiusMeters: 0,
+    radiusEnabled: false,
     subscriptionStart: new Date().toISOString(),
     subscriptionEnd: new Date().toISOString(),
   });
@@ -61,10 +61,10 @@ export default function SettingsPage() {
           const data = res.data;
           setSettings({
             ...data,
-            defaultTaxRate: parseFloat(data.defaultTaxRate) || 0,
             latitude: parseFloat(data.latitude) || 0,
             longitude: parseFloat(data.longitude) || 0,
             allowedRadiusMeters: parseInt(data.allowedRadiusMeters) || 0,
+            radiusEnabled: !!data.radiusEnabled,
           });
         } else {
           toast.error(res.error || "Error al cargar configuración");
@@ -113,10 +113,10 @@ export default function SettingsPage() {
       const formData = new FormData();
       formData.append("name", settings.name);
       formData.append("currency", settings.currency);
-      formData.append("defaultTaxRate", settings.defaultTaxRate?.toString() || "0");
       formData.append("latitude", settings.latitude?.toString() || "0");
       formData.append("longitude", settings.longitude?.toString() || "0");
       formData.append("allowedRadiusMeters", (settings.allowedRadiusMeters || 0).toString());
+      formData.append("radiusEnabled", settings.radiusEnabled ? "true" : "false");
       
       if (logoFile) {
         formData.append("logo", logoFile);
@@ -134,10 +134,10 @@ export default function SettingsPage() {
           const data = res.data;
           setSettings({
             ...data,
-            defaultTaxRate: parseFloat(data.defaultTaxRate) || 0,
             latitude: parseFloat(data.latitude) || 0,
             longitude: parseFloat(data.longitude) || 0,
             allowedRadiusMeters: parseInt(data.allowedRadiusMeters) || 0,
+            radiusEnabled: !!data.radiusEnabled,
           });
           
           // Actualizar store global

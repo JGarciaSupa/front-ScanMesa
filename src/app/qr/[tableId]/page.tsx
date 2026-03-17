@@ -11,10 +11,10 @@ async function getSettings(tenantSlug: string): Promise<{
       logoUrl: string | null
       bannerUrl: string | null
       currency: string | null
-      defaultTaxRate: string | null
       latitude: number | null
       longitude: number | null
       allowedRadiusMeters: number | null
+      radiusEnabled: boolean
     }
     categories: {
       id: number,

@@ -21,7 +21,6 @@ interface ClientMenuProps {
       logoUrl: string | null;
       bannerUrl: string | null;
       currency: string | null;
-      defaultTaxRate: string | null;
     };
     categories: { id: number; name: string }[];
     products: Product[];

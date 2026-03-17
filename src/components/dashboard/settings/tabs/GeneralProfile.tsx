@@ -2,10 +2,23 @@
 
 import { Settings } from "@/app/dashboard/settings/page";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Loader2 } from "lucide-react";
 
 interface GeneralProfileProps {
@@ -19,9 +32,8 @@ export default function GeneralProfile({
   settings,
   handleChange,
   handleSave,
-  saving
+  saving,
 }: GeneralProfileProps) {
-
   return (
     <Card className="shadow-sm">
       <CardHeader>
@@ -61,22 +73,6 @@ export default function GeneralProfile({
             </Select>
             <p className="text-xs text-muted-foreground">
               Moneda utilizada para precios y pagos.
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="taxRate">Tasa de Impuesto Predeterminada (%)</Label>
-            <Input
-              id="taxRate"
-              type="number"
-              step="0.01"
-              value={settings.defaultTaxRate}
-              onChange={(e) =>
-                handleChange("defaultTaxRate", parseFloat(e.target.value) || 0)
-              }
-            />
-            <p className="text-xs text-muted-foreground">
-              Porcentaje de impuesto a aplicar por defecto.
             </p>
           </div>
         </div>
