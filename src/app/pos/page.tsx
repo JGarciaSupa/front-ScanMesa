@@ -51,7 +51,13 @@ export default function PosPage() {
   // --- Refs para lógica persistente ---
   const socketRef = useRef<WebSocket | null>(null);
   const selectedSessionIdRef = useRef<number | null>(null);
+  const notificationsEnabledRef = useRef(false);
   const addAlert = usePosStore((state) => state.addAlert);
+
+  // Sincronizar el ref de notificaciones para evitar cierres obsoletos en el WebSocket
+  useEffect(() => {
+    notificationsEnabledRef.current = notificationsEnabled;
+  }, [notificationsEnabled]);
 
   // Inicialización de preferencias de notificación
   useEffect(() => {
@@ -106,7 +112,7 @@ export default function PosPage() {
   };
 
   const sendPushNotification = (title: string, body: string) => {
-    if (notificationsEnabled && typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
+    if (notificationsEnabledRef.current && typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
       try {
         const notification = new Notification(title, { 
           body,
