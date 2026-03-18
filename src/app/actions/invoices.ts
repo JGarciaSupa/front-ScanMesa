@@ -5,17 +5,19 @@ import getTenantSlugServer from "@/utils/getTenantSlugServer";
 
 const API_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000";
 
-export async function getInvoicesAction(options: { page?: number, limit?: number, search?: string } = {}) {
+export async function getInvoicesAction(options: { page?: number, limit?: number, search?: string, startDate?: string, endDate?: string } = {}) {
   try {
     const slug = await getTenantSlugServer();
     const cookieStore = await cookies();
     const token = cookieStore.get("accessToken")?.value;
 
-    const { page = 1, limit = 10, search = "" } = options;
+    const { page = 1, limit = 10, search = "", startDate = "", endDate = "" } = options;
     const url = new URL(`${API_URL}/tenant/invoices`);
     url.searchParams.append("page", page.toString());
     url.searchParams.append("limit", limit.toString());
     if (search) url.searchParams.append("search", search);
+    if (startDate) url.searchParams.append("startDate", startDate);
+    if (endDate) url.searchParams.append("endDate", endDate);
 
     const res = await fetch(url.toString(), {
       headers: {
@@ -31,15 +33,17 @@ export async function getInvoicesAction(options: { page?: number, limit?: number
   }
 }
 
-export async function getInvoiceStatsAction(options: { search?: string } = {}) {
+export async function getInvoiceStatsAction(options: { search?: string, startDate?: string, endDate?: string } = {}) {
   try {
     const slug = await getTenantSlugServer();
     const cookieStore = await cookies();
     const token = cookieStore.get("accessToken")?.value;
 
-    const { search = "" } = options;
+    const { search = "", startDate = "", endDate = "" } = options;
     const url = new URL(`${API_URL}/tenant/invoices/stats`);
     if (search) url.searchParams.append("search", search);
+    if (startDate) url.searchParams.append("startDate", startDate);
+    if (endDate) url.searchParams.append("endDate", endDate);
 
     const res = await fetch(url.toString(), {
       headers: {
