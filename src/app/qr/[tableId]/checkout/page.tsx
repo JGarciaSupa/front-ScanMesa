@@ -62,11 +62,11 @@ export default function CheckoutPage({
 
         // 1. Obtener info del Restaurante (Ajustes) y Mesa
         const [settingsRes, tableRes] = await Promise.all([
-          fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/tenant/settings`, {
+          fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000"}/tenant/settings`, {
             headers: { "x-schema-tenant": tenantSlug },
           }),
           fetch(
-            `${process.env.NEXT_PUBLIC_API_BASE_URL}/tenant/tables/hash/${tableHash}`,
+            `${process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000"}/tenant/tables/hash/${tableHash}`,
             {
               headers: { "x-schema-tenant": tenantSlug },
             },
@@ -99,7 +99,7 @@ export default function CheckoutPage({
         // 3. Obtener items
         if (sSessionId) {
           const itemsRes = await fetch(
-            `${process.env.NEXT_PUBLIC_API_BASE_URL}/tenant/orders/session/${sSessionId}/items`,
+            `${process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000"}/tenant/orders/session/${sSessionId}/items`,
             {
               headers: { "x-schema-tenant": tenantSlug },
             },
@@ -198,7 +198,7 @@ export default function CheckoutPage({
     try {
       const tenantSlug = getTenantSlug();
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE_URL}/tenant/orders/checkout`,
+        `${process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000"}/tenant/orders/checkout`,
         {
           method: "POST",
           headers: {

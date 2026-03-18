@@ -23,7 +23,7 @@ async function getSettings(tenantSlug: string): Promise<{
   };
 }> {
   const response = await fetch(
-    `${process.env.NEXT_PUBLIC_API_BASE_URL}/tenant/settings/client`,
+    `${process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000"}/tenant/settings/client`,
     {
       headers: { "x-schema-tenant": tenantSlug },
     },

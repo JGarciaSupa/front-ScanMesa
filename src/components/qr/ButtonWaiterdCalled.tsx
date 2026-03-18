@@ -22,7 +22,7 @@ export default function ButtonWaiterdCalled({ tableId }: { tableId: number }) {
     setIsLoading(true);
     try {
       const tenantSlug = getTenantSlug();
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/tenant/orders/waiter-call`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000"}/tenant/orders/waiter-call`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',

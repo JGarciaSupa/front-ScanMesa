@@ -77,7 +77,7 @@ export default function ClientMenu({ tableId, tenantData }: ClientMenuProps) {
   const fetchTableInfo = async (): Promise<number | null> => {
     try {
       const tenantSlug = getTenantSlug();
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/tenant/tables/hash/${tableId}`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000"}/tenant/tables/hash/${tableId}`, {
         headers: { "x-schema-tenant": tenantSlug },
       });
       const result = await response.json();
@@ -100,7 +100,7 @@ export default function ClientMenu({ tableId, tenantData }: ClientMenuProps) {
     try {
       const tenantSlug = getTenantSlug();
       const sessionLookupId = resolvedTableId ?? internalTableId ?? tableId;
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/tenant/orders/session/${sessionLookupId}`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000"}/tenant/orders/session/${sessionLookupId}`, {
         headers: { "x-schema-tenant": tenantSlug },
       });
       const result = await response.json();
@@ -378,7 +378,7 @@ export default function ClientMenu({ tableId, tenantData }: ClientMenuProps) {
         const tenantSlug = getTenantSlug();
         if (!isTableOccupied) {
           const generatedCode = Math.floor(100000 + Math.random() * 900000).toString();
-          const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/tenant/orders/session/open`, {
+          const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000"}/tenant/orders/session/open`, {
             method: 'POST',
             headers: { 
               'Content-Type': 'application/json',
@@ -425,7 +425,7 @@ export default function ClientMenu({ tableId, tenantData }: ClientMenuProps) {
             showToast("Código incompleto", "error");
             return;
           }
-          const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/tenant/orders/session/join`, {
+          const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000"}/tenant/orders/session/join`, {
             method: 'POST',
             headers: { 
               'Content-Type': 'application/json',
@@ -549,7 +549,7 @@ export default function ClientMenu({ tableId, tenantData }: ClientMenuProps) {
     setIsLoading(true);
     try {
       const tenantSlug = getTenantSlug();
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/tenant/orders`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000"}/tenant/orders`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
