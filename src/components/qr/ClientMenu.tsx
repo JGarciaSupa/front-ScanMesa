@@ -74,62 +74,66 @@ export default function ClientMenu({ tableId, tenantData }: ClientMenuProps) {
     return subDomain.replace('-', '_');
   };
 
-  useEffect(() => {
-    const fetchTableInfo = async () => {
-      try {
-        const tenantSlug = getTenantSlug();
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/tenant/tables/hash/${tableId}`, {
-          headers: { "x-schema-tenant": tenantSlug },
-        });
-        const result = await response.json();
-        if (result.success && result.data) {
-          setTableName(result.data.name);
-          setInternalTableId(result.data.id);
-        } else {
-          router.push('/qr');
-        }
-      } catch (error) {
-        console.error("Error fetching table info:", error);
+  const fetchTableInfo = async (): Promise<number | null> => {
+    try {
+      const tenantSlug = getTenantSlug();
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/tenant/tables/hash/${tableId}`, {
+        headers: { "x-schema-tenant": tenantSlug },
+      });
+      const result = await response.json();
+      if (result.success && result.data) {
+        setTableName(result.data.name);
+        setInternalTableId(result.data.id);
+        return result.data.id;
+      } else {
         router.push('/qr');
+        return null;
       }
-    };
+    } catch (error) {
+      console.error("Error fetching table info:", error);
+      router.push('/qr');
+      return null;
+    }
+  };
 
-    const checkSession = async () => {
-      try {
-        const tenantSlug = getTenantSlug();
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/tenant/orders/session/${tableId}`, {
-          headers: { "x-schema-tenant": tenantSlug },
-        });
-        const result = await response.json();
-        
-        if (result.success) {
-          if (result.data) {
-            setIsTableOccupied(true);
-            setSessionCode(result.data.code);
-            setSessionId(result.data.id);
+  const checkSession = async (resolvedTableId?: number | string) => {
+    try {
+      const tenantSlug = getTenantSlug();
+      const sessionLookupId = resolvedTableId ?? internalTableId ?? tableId;
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/tenant/orders/session/${sessionLookupId}`, {
+        headers: { "x-schema-tenant": tenantSlug },
+      });
+      const result = await response.json();
+      
+      if (result.success) {
+        if (result.data) {
+          setIsTableOccupied(true);
+          setSessionCode(result.data.code);
+          setSessionId(result.data.id);
 
-            const savedSession = localStorage.getItem(`table_session_${tableId}`);
-            if (savedSession) {
-              const { guestId: savedGuestId, guestName: savedGuestName, sessionId: savedSessionId } = JSON.parse(savedSession);
-              if (savedSessionId === result.data.id) {
-                setGuestId(savedGuestId);
-                setGuestName(savedGuestName);
-              }
+          const savedSession = localStorage.getItem(`table_session_${tableId}`);
+          if (savedSession) {
+            const { guestId: savedGuestId, guestName: savedGuestName, sessionId: savedSessionId } = JSON.parse(savedSession);
+            if (savedSessionId === result.data.id) {
+              setGuestId(savedGuestId);
+              setGuestName(savedGuestName);
             }
-          } else {
-            localStorage.removeItem(`table_session_${tableId}`);
-            setIsTableOccupied(false);
-            setGuestId(null);
-            setGuestName("");
           }
+        } else {
+          localStorage.removeItem(`table_session_${tableId}`);
+          setIsTableOccupied(false);
+          setGuestId(null);
+          setGuestName("");
         }
-      } catch (error) {
-        console.error("Error checking session:", error);
-      } finally {
-        setIsSessionChecking(false);
       }
-    };
+    } catch (error) {
+      console.error("Error checking session:", error);
+    } finally {
+      setIsSessionChecking(false);
+    }
+  };
 
+  useEffect(() => {
     const checkInitialLocation = async () => {
       // Solo validamos ubicación si el radio está habilitado y el usuario no ha entrado aún
       if (tenantData.info.radiusEnabled && !guestName) {
@@ -173,9 +177,13 @@ export default function ClientMenu({ tableId, tenantData }: ClientMenuProps) {
       }
     };
 
-    fetchTableInfo();
-    checkSession();
-    checkInitialLocation();
+    const init = async () => {
+      const resolvedTableId = await fetchTableInfo();
+      await checkSession(resolvedTableId ?? undefined);
+      await checkInitialLocation();
+    };
+
+    init();
 
     if (typeof window !== "undefined") {
       const urlParams = new URLSearchParams(window.location.search);
@@ -189,8 +197,6 @@ export default function ClientMenu({ tableId, tenantData }: ClientMenuProps) {
   }, [tableId, router]);
 
   useEffect(() => {
-    if (!guestName || !sessionId) return;
-
     let mounted = true;
     let socket: WebSocket | null = null;
     let reconnectTimeout: any;
@@ -215,7 +221,6 @@ export default function ClientMenu({ tableId, tenantData }: ClientMenuProps) {
         socket.onopen = () => {
           if (!mounted) return;
           console.log('[WS Cliente] Conectado');
-          // Podríamos re-verificar la sesión aquí si quisiéramos ser ultra-robustos
         };
 
         socket.onmessage = (event) => {
@@ -232,7 +237,7 @@ export default function ClientMenu({ tableId, tenantData }: ClientMenuProps) {
               showToast("La mesa ha sido cerrada", "error");
             }
 
-            if (eventName === 'guest:joined' && data.sessionId === sessionId) {
+            if (eventName === 'guest:joined' && sessionId && data.sessionId === sessionId) {
               if (data.guestId !== guestId) {
                 showToast(`${data.guestName} se unió a la mesa`, "success");
               }
@@ -240,6 +245,9 @@ export default function ClientMenu({ tableId, tenantData }: ClientMenuProps) {
 
             if (eventName === 'table:opened' && data.tableId === (internalTableId || parseInt(tableId))) {
                 setIsTableOccupied(true);
+                // Si la mesa se abrió mientras estábamos esperando, puede que necesitemos el sessionId
+                // para el join posterior. Como no viene en el evento, forzamos un re-chequeo.
+                checkSession();
             }
 
             if (eventName === 'product:created') {
@@ -402,12 +410,15 @@ export default function ClientMenu({ tableId, tenantData }: ClientMenuProps) {
 
             showToast("Mesa lista", "success");
           } else {
-            showToast(result.error || "Error", "error");
             if (result.error === "La mesa ya tiene una sesión activa") {
-              setTimeout(() => {
-                window.location.reload();
-              }, 1500);
+              // Si la mesa se ocupó justo antes de que el usuario clickeara "Abrir mesa",
+              // actualizamos el estado local para pedir el código de invitación.
+              await checkSession();
+              setIsLoading(false);
+              showToast("La mesa ya está abierta. Ingresa tu código.", "error");
+              return;
             }
+            showToast(result.error || "Error al procesar", "error");
           }
         } else {
           if (codeInput.trim().length < 6 && !isCodePreFilled) {
