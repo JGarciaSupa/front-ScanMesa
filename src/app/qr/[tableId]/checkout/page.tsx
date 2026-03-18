@@ -325,7 +325,7 @@ export default function CheckoutPage({
                   className="flex items-center justify-between p-5 bg-white rounded-[24px] border border-slate-100 shadow-sm"
                 >
                   <div className="flex-1 min-w-0 pr-4">
-                    <p className="font-bold text-slate-900 text-sm md:text-base line-clamp-2">
+                    <p className="font-bold text-slate-900 text-sm md:text-base line-clamp-2 wrap-break-word">
                       {item.quantity}x {item.name}
                     </p>
                     <p className="text-[11px] font-bold text-slate-400 uppercase tracking-tighter mt-1">

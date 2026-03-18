@@ -77,7 +77,7 @@ export function TableDetailModal({
         )}>
           <div className="flex flex-col gap-1 pr-8">
             <div className="flex items-center gap-3">
-              <DialogTitle className="text-3xl font-bold tracking-tight leading-none">{table.name}</DialogTitle>
+              <DialogTitle className="text-3xl font-bold tracking-tight leading-none truncate flex-1 min-w-0">{table.name}</DialogTitle>
               {isOccupied && (
                 <Badge variant="secondary" className="bg-white text-destructive hover:bg-white/90 font-bold uppercase tracking-wider text-[10px] px-2 py-0.5">
                   Ocupada
@@ -100,7 +100,7 @@ export function TableDetailModal({
           </div>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 min-h-0 w-full bg-background">
+        <ScrollArea className="flex-1 min-h-0 w-full bg-background [&_[data-slot='scroll-area-viewport']>div]:block!">
           <div className="p-6 space-y-8">
             {isOccupied ? (
               <div className="space-y-8 pb-4">
@@ -115,8 +115,8 @@ export function TableDetailModal({
                       {table.pendingCalls.map(call => (
                         <Card key={call.id} className="bg-amber-50/50 border-amber-100/50 shadow-none">
                           <CardContent className="p-3 flex justify-between items-center gap-4">
-                            <div className="flex flex-col">
-                              <span className="text-sm font-semibold text-amber-900 leading-tight">{call.reason}</span>
+                            <div className="flex flex-col min-w-0 flex-1">
+                              <span className="text-sm font-semibold text-amber-900 leading-tight line-clamp-2 wrap-break-word">{call.reason}</span>
                               <span className="text-[10px] text-amber-600/80 font-medium">{new Date(call.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                             </div>
                             <Button 
@@ -137,8 +137,8 @@ export function TableDetailModal({
                 {/* Resumen financiero */}
                 <Card className="border-none bg-muted/40 shadow-none">
                   <CardContent className="p-6 flex flex-col items-center justify-center text-center space-y-1">
-                    <span className="text-muted-foreground text-[10px] font-black uppercase tracking-[0.2em]">Total Acumulado</span>
-                    <span className="text-4xl font-bold tracking-tighter tabular-nums text-foreground">{formatPrice(grandTotal)}</span>
+                    <span className="text-muted-foreground text-[10px] font-black uppercase tracking-[0.2em] opacity-60">Total Acumulado</span>
+                    <span className="text-4xl font-black tracking-tighter tabular-nums text-foreground">{formatPrice(grandTotal)}</span>
                   </CardContent>
                 </Card>
 
@@ -150,13 +150,13 @@ export function TableDetailModal({
                 ) : Object.keys(dinersMap).length > 0 ? (
                   <div className="space-y-8">
                     {Object.entries(dinersMap).map(([id, diner], index, arr) => (
-                      <div key={id} className="space-y-4">
-                        <div className="flex justify-between items-end border-b pb-2">
-                          <h4 className="text-xs font-bold flex items-center gap-2 text-muted-foreground uppercase tracking-wider">
-                            <Users className="w-3.5 h-3.5" />
-                            {diner.name}
+                      <div key={id} className="">
+                        <div className="flex items-center justify-between gap-4 border-b pb-2 px-2">
+                          <h4 className="text-xs font-bold flex items-center gap-2 text-muted-foreground uppercase tracking-wider truncate min-w-0 flex-1">
+                            <Users className="w-3.5 h-3.5 shrink-0" />
+                            <span className="truncate">{diner.name}</span>
                           </h4>
-                          <span className="text-sm font-bold text-foreground">
+                          <span className="text-sm font-bold text-foreground shrink-0 tabular-nums">
                             {formatPrice(diner.items.reduce((s, i) => s + (i.price * i.quantity), 0))}
                           </span>
                         </div>
@@ -167,7 +167,7 @@ export function TableDetailModal({
                               <div 
                                 key={item.id} 
                                 className={cn(
-                                  "flex items-center gap-4 px-3 py-2 -mx-3 rounded-xl transition-all",
+                                  "flex items-center gap-4 px-2 py-2 rounded-xl transition-all",
                                   !isServed && "cursor-pointer hover:bg-muted/50 active:scale-[0.99]"
                                 )}
                                 onClick={() => !isServed && onMarkAsServed(item.id, item.kitchenStatus)}
@@ -178,9 +178,9 @@ export function TableDetailModal({
                                   className="w-5 h-5 rounded-md border-muted-foreground/30 data-[state=checked]:bg-emerald-500 data-[state=checked]:border-emerald-500 shrink-0 pointer-events-none"
                                 />
                                 <div className="flex flex-col flex-1 min-w-0">
-                                  <div className="flex items-center gap-2">
+                                  <div className="flex items-center gap-2 min-w-0">
                                     <span className={cn(
-                                      "font-semibold text-sm leading-tight text-foreground line-clamp-2",
+                                      "font-semibold text-sm sm:text-base leading-tight text-foreground line-clamp-2 wrap-break-word",
                                       isServed && "text-muted-foreground line-through decoration-1"
                                     )}>
                                       {item.quantity}x {item.name}

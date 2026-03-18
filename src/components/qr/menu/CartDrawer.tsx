@@ -66,7 +66,7 @@ export default function CartDrawer({
             </SheetDescription>
           </SheetHeader>
           
-          <ScrollArea className="flex-1 p-6">
+          <ScrollArea className="flex-1 p-6 [&_[data-slot='scroll-area-viewport']>div]:block!">
             <ul className="flex flex-col gap-6">
               {cart.map((item) => (
                 <li key={item.product.id} className="flex gap-4">

@@ -126,38 +126,38 @@ export default function PosLayout({ children }: { children: ReactNode }) {
           <div className="flex flex-col md:flex-row h-auto md:h-16 items-center px-4 py-3 md:py-0 gap-4 md:gap-0 justify-between max-w-7xl mx-auto w-full">
             
             {/* Izquierda: Mozo y Zona */}
-            <div className="flex items-center gap-6 w-full md:w-auto justify-between md:justify-start">
-              <div className="flex items-center gap-3">
-                <Avatar className="h-10 w-10 border border-slate-200">
+            <div className="flex items-center gap-2 xs:gap-4 sm:gap-6 w-full md:w-auto justify-between md:justify-start overflow-hidden">
+              <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+                <Avatar className="h-8 w-8 sm:h-10 sm:w-10 border border-slate-200">
                   {logoUrl ? (
                     <AvatarImage src={logoUrl} alt={tenantName} />
                   ) : (
-                    <AvatarFallback className="bg-primary/10 text-primary font-bold">
+                    <AvatarFallback className="bg-primary/10 text-primary font-bold text-xs">
                       {getInitials(tenantName)}
                     </AvatarFallback>
                   )}
                 </Avatar>
-                <div className="flex flex-col">
-                  <span className="text-sm font-black text-foreground uppercase tracking-wider">{tenantName}</span>
-                  <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">SALA / POS</span>
+                <div className="flex flex-col min-w-0">
+                  <span className="text-xs sm:text-sm font-black text-foreground uppercase tracking-wider truncate max-w-[80px] xs:max-w-[120px] sm:max-w-none">{tenantName}</span>
+                  <span className="text-[9px] sm:text-[10px] text-muted-foreground font-bold uppercase tracking-widest truncate">SALA / POS</span>
                 </div>
               </div>
 
-              <div className="h-8 w-px bg-border hidden md:block" />
+              <div className="h-8 w-px bg-border hidden md:block shrink-0" />
 
               <Popover open={isProfileOpen} onOpenChange={setIsProfileOpen}>
                 <PopoverTrigger asChild>
-                  <button className="flex items-center gap-2.5 hover:bg-accent hover:text-accent-foreground p-1.5 pr-3 rounded-full transition-colors text-left focus:outline-none focus:ring-2 focus:ring-ring">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm ring-2 ring-primary/20">
-                      <User className="h-5 w-5" />
+                  <button className="flex items-center gap-1.5 sm:gap-2.5 hover:bg-accent hover:text-accent-foreground p-1 rounded-full transition-colors text-left focus:outline-none focus:ring-2 focus:ring-ring overflow-hidden">
+                    <div className="flex h-8 w-8 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm ring-2 ring-primary/20">
+                      <User className="h-4 w-4 sm:h-5 sm:w-5" />
                     </div>
-                    <div className="flex flex-col">
-                      <span className="text-sm font-bold text-foreground leading-none">{waiterName}</span>
-                      <span className="text-xs text-muted-foreground font-medium flex items-center gap-1 mt-1">
-                        <MapPin className="h-3 w-3" /> {assignedZone}
+                    <div className="flex flex-col min-w-0">
+                      <span className="text-xs sm:text-sm font-bold text-foreground leading-none truncate max-w-[60px] xs:max-w-[100px] sm:max-w-none">{waiterName}</span>
+                      <span className="text-[9px] sm:text-xs text-muted-foreground font-medium flex items-center gap-1 mt-0.5 truncate">
+                        <MapPin className="h-2 w-2 sm:h-3 sm:w-3" /> {assignedZone}
                       </span>
                     </div>
-                    <ChevronDown className="h-4 w-4 text-muted-foreground ml-1" />
+                    <ChevronDown className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground ml-0.5 shrink-0" />
                   </button>
                 </PopoverTrigger>
                 <PopoverContent className="w-64 p-2 rounded-2xl shadow-xl border-border mt-2" align="start">

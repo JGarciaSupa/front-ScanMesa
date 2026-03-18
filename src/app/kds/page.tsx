@@ -379,7 +379,7 @@ export default function KDSPage() {
                         </div>
                         <div className="flex-1 min-w-0">
                           <div
-                            className={`text-base font-bold uppercase leading-6 transition-all line-clamp-2 ${
+                            className={`text-base font-bold uppercase leading-6 transition-all line-clamp-2 wrap-break-word min-w-0 ${
                               item.isReady
                                 ? "line-through text-slate-300"
                                 : "text-slate-800"

@@ -28,7 +28,7 @@ export function PosHeader({ isConnected, notificationsEnabled, onToggleNotificat
   const isAdmin = user?.role?.toLowerCase() === "admin";
 
   return (
-    <div className="flex justify-between items-center mb-8">
+    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
       <div className="flex items-center gap-4">
         <div>
           <h1 className="text-3xl font-black tracking-tight">POS - Gestión de Salón</h1>

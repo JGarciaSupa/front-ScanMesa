@@ -35,7 +35,7 @@ export function TableCard({ table, onClick }: TableCardProps) {
         {hasPendingCalls && (
           <div className="absolute top-2 right-2 w-3 h-3 bg-amber-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(245,158,11,0.8)]" />
         )}
-        <span className="text-3xl font-black text-slate-800 leading-none">{table.name}</span>
+        <span className="text-2xl sm:text-3xl font-black text-slate-800 leading-tight w-full px-1 overflow-hidden line-clamp-2">{table.name}</span>
         <Badge variant={isOccupied ? "destructive" : "secondary"} className="text-[10px] uppercase font-black tracking-widest">
           {isOccupied ? "Ocupada" : "Libre"}
         </Badge>
