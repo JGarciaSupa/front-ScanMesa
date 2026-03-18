@@ -30,8 +30,8 @@ export default function ProductDetailModal({
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-[425px] p-0 overflow-hidden rounded-md border-none">
-        <div className="flex flex-col">
-          <div className="relative h-64 w-full">
+        <div className="flex flex-col overflow-hidden">
+          <div className="relative h-64 w-full overflow-hidden">
             <img 
               src={product.imageUrl || ""} 
               alt={product.name}

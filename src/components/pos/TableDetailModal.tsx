@@ -180,7 +180,7 @@ export function TableDetailModal({
                                 <div className="flex flex-col flex-1 min-w-0">
                                   <div className="flex items-center gap-2">
                                     <span className={cn(
-                                      "font-semibold text-sm leading-tight text-foreground truncate",
+                                      "font-semibold text-sm leading-tight text-foreground line-clamp-2",
                                       isServed && "text-muted-foreground line-through decoration-1"
                                     )}>
                                       {item.quantity}x {item.name}
