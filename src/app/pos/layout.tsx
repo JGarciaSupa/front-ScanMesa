@@ -5,21 +5,18 @@ import { Bell, User, MapPin, ChevronDown, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
 
 import { logoutAction } from "@/app/actions/logout";
-import { saveStaffAction } from "@/app/actions/staff";
 import { toast } from "sonner";
+import { UserProfileDialog } from "@/components/auth/UserProfileDialog";
 import { useAuthStore } from "@/store/useAuthStore";
 import { usePosStore, PosAlert } from "@/store/usePosStore";
 import { useConfigStore } from "@/store/useConfigStore";
 import RoleGuard from "@/components/auth/RoleGuard";
 import { cn } from "@/lib/utils";
-import { useEffect } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Separator } from "@/components/ui/separator";
+import { useEffect } from "react";
 
 export default function PosLayout({ children }: { children: ReactNode }) {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -29,20 +26,7 @@ export default function PosLayout({ children }: { children: ReactNode }) {
   const logoutStore = useAuthStore((state) => state.logout);
   const { alerts, markAsRead, clearAlerts } = usePosStore();
   const { tenantName, logoUrl, fetchConfig } = useConfigStore();
-
-  const [editName, setEditName] = useState("");
-  const [editEmail, setEditEmail] = useState("");
-  const [editPassword, setEditPassword] = useState("");
-  const [isUpdating, setIsUpdating] = useState(false);
-  
   const unreadAlerts = alerts.filter(a => !a.isRead).length;
-
-  useEffect(() => {
-    if (user) {
-      setEditName(user.name);
-      setEditEmail(user.email);
-    }
-  }, [user, isEditProfileOpen]);
 
   useEffect(() => {
     fetchConfig();
@@ -69,39 +53,6 @@ export default function PosLayout({ children }: { children: ReactNode }) {
   const handleLogout = async () => {
     logoutStore();
     await logoutAction();
-  };
-
-  const handleUpdateProfile = async () => {
-    if (!user) return;
-    if (!editName || !editEmail) {
-      toast.error("Nombre y Email son requeridos");
-      return;
-    }
-
-    try {
-      setIsUpdating(true);
-      const data: any = {
-        name: editName,
-        email: editEmail,
-      };
-      if (editPassword) {
-        data.password = editPassword;
-      }
-
-      const res = await saveStaffAction(data, user.id);
-      if (res.success) {
-        toast.success("Perfil actualizado correctamente");
-        setUserStore(res.data);
-        setIsEditProfileOpen(false);
-        setEditPassword("");
-      } else {
-        toast.error(res.error || "Error al actualizar perfil");
-      }
-    } catch (error) {
-      toast.error("Error de conexión");
-    } finally {
-      setIsUpdating(false);
-    }
   };
 
   const NotificationList = () => (
@@ -216,69 +167,19 @@ export default function PosLayout({ children }: { children: ReactNode }) {
                 </PopoverTrigger>
                 <PopoverContent className="w-48 p-2 rounded-md shadow-xl border-border mt-2" align="start">
                   <div className="space-y-1">
-                    <Dialog open={isEditProfileOpen} onOpenChange={setIsEditProfileOpen}>
-                      <DialogTrigger asChild>
-                        <Button variant="ghost" className="w-full justify-start text-muted-foreground hover:text-accent-foreground hover:bg-accent px-3 py-2">
-                          <User className="mr-2 h-4 w-4" />
-                          Editar Perfil
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent className="sm:max-w-[425px]">
-                        <DialogHeader>
-                          <DialogTitle>Editar Perfil</DialogTitle>
-                          <DialogDescription>
-                            Actualiza tus datos personales y confirma los cambios.
-                          </DialogDescription>
-                        </DialogHeader>
-                        <div className="grid gap-4 py-4">
-                          <div className="grid grid-cols-4 items-center gap-4">
-                            <Label htmlFor="name" className="text-right">
-                              Nombre
-                            </Label>
-                            <Input 
-                              id="name" 
-                              value={editName} 
-                              onChange={(e) => setEditName(e.target.value)}
-                              className="col-span-3" 
-                            />
-                          </div>
-                          <div className="grid grid-cols-4 items-center gap-4">
-                            <Label htmlFor="email" className="text-right">
-                              Email
-                            </Label>
-                            <Input 
-                              id="email" 
-                              type="email"
-                              value={editEmail} 
-                              onChange={(e) => setEditEmail(e.target.value)}
-                              className="col-span-3" 
-                            />
-                          </div>
-                          <div className="grid grid-cols-4 items-center gap-4">
-                            <Label htmlFor="password" className="text-right text-xs">
-                              Nueva Contraseña
-                            </Label>
-                            <Input 
-                              id="password" 
-                              type="password" 
-                              placeholder="Dejar en blanco para no cambiar" 
-                              value={editPassword}
-                              onChange={(e) => setEditPassword(e.target.value)}
-                              className="col-span-3" 
-                            />
-                          </div>
-                        </div>
-                        <DialogFooter>
-                          <Button 
-                            type="button" 
-                            onClick={handleUpdateProfile}
-                            disabled={isUpdating}
-                          >
-                            {isUpdating ? "Guardando..." : "Guardar Cambios"}
-                          </Button>
-                        </DialogFooter>
-                      </DialogContent>
-                    </Dialog>
+                    <UserProfileDialog 
+                      open={isEditProfileOpen} 
+                      onOpenChange={setIsEditProfileOpen} 
+                    />
+                    
+                    <Button 
+                      variant="ghost" 
+                      className="w-full justify-start text-muted-foreground hover:text-accent-foreground hover:bg-accent px-3 py-2"
+                      onClick={() => setIsEditProfileOpen(true)}
+                    >
+                      <User className="mr-2 h-4 w-4" />
+                      Editar Perfil
+                    </Button>
                     
                     <Separator />
 

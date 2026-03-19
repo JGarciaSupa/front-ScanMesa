@@ -2,21 +2,20 @@
 
 import { useState, useEffect, Suspense } from "react";
 import { Badge } from "@/components/ui/badge";
-import { Clock, Flame, BellRing, User, LogOut, Settings } from "lucide-react";
+import { Clock, BellRing, User, LogOut, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Switch } from "@/components/ui/switch";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+
+import { UserProfileDialog } from "@/components/auth/UserProfileDialog";
 
 import { logoutAction } from "@/app/actions/logout";
 import { useAuthStore } from "@/store/useAuthStore";
 
 import { useKdsStore } from "@/store/useKdsStore";
 import { useConfigStore } from "@/store/useConfigStore";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 function KDSHeaderContent() {
   const router = useRouter();
@@ -159,34 +158,10 @@ function KDSHeaderContent() {
         </Dialog>
 
         {/* Diálogo de Mi Perfil */}
-        <Dialog open={showProfileDialog} onOpenChange={setShowProfileDialog}>
-          <DialogContent className="max-w-md sm:max-w-md! z-50">
-            <DialogHeader>
-              <DialogTitle>Mi Perfil</DialogTitle>
-              <DialogDescription className="text-base mt-2">
-                Actualiza tu información y clave de acceso al KDS.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="flex flex-col gap-4 py-4">
-              <div className="grid gap-2">
-                <Label htmlFor="chef-name">Nombre</Label>
-                <Input id="chef-name" defaultValue="Julio" />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="chef-password">Nueva Clave (PIN)</Label>
-                <Input id="chef-password" type="password" placeholder="Ingresa un nuevo PIN o clave" />
-              </div>
-            </div>
-            <DialogFooter className="mt-4 sm:justify-end gap-2">
-              <Button variant="outline" onClick={() => setShowProfileDialog(false)}>
-                Cancelar
-              </Button>
-              <Button onClick={() => setShowProfileDialog(false)}>
-                Guardar Cambios
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        <UserProfileDialog 
+          open={showProfileDialog} 
+          onOpenChange={setShowProfileDialog} 
+        />
       </div>
     </header>
   );
