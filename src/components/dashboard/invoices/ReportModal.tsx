@@ -109,6 +109,7 @@ export function ReportModal({ isOpen, onClose, searchTerm }: ReportModalProps) {
                     selected={startDate}
                     onSelect={setStartDate}
                     initialFocus
+                    locale={es}
                   />
                 </PopoverContent>
               </Popover>
@@ -138,6 +139,7 @@ export function ReportModal({ isOpen, onClose, searchTerm }: ReportModalProps) {
                     selected={endDate}
                     onSelect={setEndDate}
                     initialFocus
+                    locale={es}
                   />
                 </PopoverContent>
               </Popover>
