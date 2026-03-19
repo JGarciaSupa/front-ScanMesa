@@ -92,6 +92,18 @@ export default function PosPage() {
       return;
     }
 
+    // Detección básica de iOS
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    const isStandalone = (window.navigator as any).standalone || window.matchMedia('(display-mode: standalone)').matches;
+
+    if (isIOS && !isStandalone) {
+      toast.info("En iOS, para recibir notificaciones debes añadir esta web a la pantalla de inicio (Compartir -> Añadir a pantalla de inicio)", {
+        duration: 10000,
+      });
+      // No retornamos aquí porque igual queremos intentar pedir permiso si es posible, 
+      // aunque en la mayoría de versiones de iOS solo se puede en modo standalone.
+    }
+
     const permission = await Notification.requestPermission();
     setPermissionState(permission);
     
@@ -99,9 +111,18 @@ export default function PosPage() {
       setNotificationsEnabled(true);
       localStorage.setItem("pos-notifications-enabled", "true");
       toast.success("¡Notificaciones activadas!");
-      new Notification("Notificaciones activadas", {
-        body: "Recibirás alertas cuando los pedidos estén listos o llamen al mozo.",
-      });
+      
+      if ("serviceWorker" in navigator) {
+        const registration = await navigator.serviceWorker.ready;
+        registration.showNotification("Notificaciones activadas", {
+          body: "Recibirás alertas cuando los pedidos estén listos o llamen al mozo.",
+          icon: '/icon-192x192.png',
+        });
+      } else {
+        new Notification("Notificaciones activadas", {
+          body: "Recibirás alertas cuando los pedidos estén listos o llamen al mozo.",
+        });
+      }
     } else {
       setNotificationsEnabled(false);
       if (permission === "denied") {
@@ -111,22 +132,28 @@ export default function PosPage() {
     setShowNotificationPrompt(false);
   };
 
-  const sendPushNotification = (title: string, body: string) => {
-    if (notificationsEnabledRef.current && typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
+  const sendPushNotification = async (title: string, body: string) => {
+    if (notificationsEnabledRef.current && typeof window !== "undefined" && "serviceWorker" in navigator && Notification.permission === "granted") {
       try {
-        const notification = new Notification(title, { 
+        const registration = await navigator.serviceWorker.ready;
+        const options: any = {
           body,
           icon: '/icon-192x192.png',
-          silent: false,
-          requireInteraction: false
-        });
-        
-        notification.onclick = () => {
-          window.focus();
-          notification.close();
+          badge: '/logo.png',
+          vibrate: [100, 50, 100],
+          data: {
+            url: window.location.href
+          }
         };
+        await registration.showNotification(title, options);
       } catch (e) { 
-        console.error("Error sending notification:", e); 
+        console.error("Error sending notification via Service Worker:", e);
+        // Fallback a notificación local si el Service Worker falla (no funcionará en iOS)
+        try {
+          new Notification(title, { body, icon: '/icon-192x192.png' });
+        } catch (err) {
+          console.error("Local notification fallback failed:", err);
+        }
       }
     }
   };
