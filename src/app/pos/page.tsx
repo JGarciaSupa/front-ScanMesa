@@ -52,7 +52,13 @@ export default function PosPage() {
   const socketRef = useRef<WebSocket | null>(null);
   const selectedSessionIdRef = useRef<number | null>(null);
   const notificationsEnabledRef = useRef(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const addAlert = usePosStore((state) => state.addAlert);
+
+  // Inicialización de audio
+  useEffect(() => {
+    audioRef.current = new Audio("/sounds/notification.mp3");
+  }, []);
 
   // Sincronizar el ref de notificaciones para evitar cierres obsoletos en el WebSocket
   useEffect(() => {
@@ -133,26 +139,37 @@ export default function PosPage() {
   };
 
   const sendPushNotification = async (title: string, body: string) => {
-    if (notificationsEnabledRef.current && typeof window !== "undefined" && "serviceWorker" in navigator && Notification.permission === "granted") {
-      try {
-        const registration = await navigator.serviceWorker.ready;
-        const options: any = {
-          body,
-          icon: '/icon-192x192.png',
-          badge: '/logo.png',
-          vibrate: [100, 50, 100],
-          data: {
-            url: window.location.href
-          }
-        };
-        await registration.showNotification(title, options);
-      } catch (e) { 
-        console.error("Error sending notification via Service Worker:", e);
-        // Fallback a notificación local si el Service Worker falla (no funcionará en iOS)
+    if (notificationsEnabledRef.current && typeof window !== "undefined") {
+      // Reproducir sonido
+      if (audioRef.current) {
+        audioRef.current.play().catch(e => console.warn("Error playing notification sound:", e));
+      }
+
+      // Vibrar si el navegador lo permite (Android)
+      if ("vibrate" in navigator) {
+        navigator.vibrate([200, 100, 200]);
+      }
+
+      // Notificación de sistema (solo si hay permiso y soporte)
+      if (("Notification" in window || "serviceWorker" in navigator) && Notification.permission === "granted") {
         try {
-          new Notification(title, { body, icon: '/icon-192x192.png' });
-        } catch (err) {
-          console.error("Local notification fallback failed:", err);
+          if ("serviceWorker" in navigator) {
+            const registration = await navigator.serviceWorker.ready;
+            const options: any = {
+              body,
+              icon: '/icon-192x192.png',
+              badge: '/logo.png',
+              vibrate: [200, 100, 200],
+              data: {
+                url: window.location.href
+              }
+            };
+            await registration.showNotification(title, options);
+          } else {
+            new Notification(title, { body, icon: '/icon-192x192.png' });
+          }
+        } catch (e) { 
+          console.error("Error sending system notification:", e);
         }
       }
     }
