@@ -10,6 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 import { logoutAction } from "@/app/actions/logout";
+import { saveStaffAction } from "@/app/actions/staff";
+import { toast } from "sonner";
 import { useAuthStore } from "@/store/useAuthStore";
 import { usePosStore, PosAlert } from "@/store/usePosStore";
 import { useConfigStore } from "@/store/useConfigStore";
@@ -17,16 +19,30 @@ import RoleGuard from "@/components/auth/RoleGuard";
 import { cn } from "@/lib/utils";
 import { useEffect } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Separator } from "@/components/ui/separator";
 
 export default function PosLayout({ children }: { children: ReactNode }) {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
   const user = useAuthStore((state) => state.user);
+  const setUserStore = useAuthStore((state) => state.setUser);
   const logoutStore = useAuthStore((state) => state.logout);
   const { alerts, markAsRead, clearAlerts } = usePosStore();
   const { tenantName, logoUrl, fetchConfig } = useConfigStore();
+
+  const [editName, setEditName] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editPassword, setEditPassword] = useState("");
+  const [isUpdating, setIsUpdating] = useState(false);
   
   const unreadAlerts = alerts.filter(a => !a.isRead).length;
+
+  useEffect(() => {
+    if (user) {
+      setEditName(user.name);
+      setEditEmail(user.email);
+    }
+  }, [user, isEditProfileOpen]);
 
   useEffect(() => {
     fetchConfig();
@@ -42,12 +58,50 @@ export default function PosLayout({ children }: { children: ReactNode }) {
   };
 
   // Simulamos datos del mozo actual
-  const waiterName = user?.name || "Camarero";
-  const assignedZone = "Terraza";
+  const waiterName = user?.name || "Usuario";
+
+  const roleLabels: Record<string, string> = {
+    admin: "Administrador",
+    kitchen: "Cocina",
+    waiter: "Camarero",
+  };
 
   const handleLogout = async () => {
     logoutStore();
     await logoutAction();
+  };
+
+  const handleUpdateProfile = async () => {
+    if (!user) return;
+    if (!editName || !editEmail) {
+      toast.error("Nombre y Email son requeridos");
+      return;
+    }
+
+    try {
+      setIsUpdating(true);
+      const data: any = {
+        name: editName,
+        email: editEmail,
+      };
+      if (editPassword) {
+        data.password = editPassword;
+      }
+
+      const res = await saveStaffAction(data, user.id);
+      if (res.success) {
+        toast.success("Perfil actualizado correctamente");
+        setUserStore(res.data);
+        setIsEditProfileOpen(false);
+        setEditPassword("");
+      } else {
+        toast.error(res.error || "Error al actualizar perfil");
+      }
+    } catch (error) {
+      toast.error("Error de conexión");
+    } finally {
+      setIsUpdating(false);
+    }
   };
 
   const NotificationList = () => (
@@ -147,34 +201,24 @@ export default function PosLayout({ children }: { children: ReactNode }) {
 
               <Popover open={isProfileOpen} onOpenChange={setIsProfileOpen}>
                 <PopoverTrigger asChild>
-                  <button className="flex items-center gap-1.5 sm:gap-2.5 hover:bg-accent hover:text-accent-foreground p-1 rounded-full transition-colors text-left focus:outline-none focus:ring-2 focus:ring-ring overflow-hidden">
+                  <button className="flex items-center gap-1.5 sm:gap-2.5 p-1 rounded-full text-left overflow-hidden">
                     <div className="flex h-8 w-8 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm ring-2 ring-primary/20">
                       <User className="h-4 w-4 sm:h-5 sm:w-5" />
                     </div>
                     <div className="flex flex-col min-w-0">
                       <span className="text-xs sm:text-sm font-bold text-foreground leading-none truncate max-w-[60px] xs:max-w-[100px] sm:max-w-none">{waiterName}</span>
                       <span className="text-[9px] sm:text-xs text-muted-foreground font-medium flex items-center gap-1 mt-0.5 truncate">
-                        <MapPin className="h-2 w-2 sm:h-3 sm:w-3" /> {assignedZone}
+                        {user?.role ? roleLabels[user.role] : "Usuario"}
                       </span>
                     </div>
                     <ChevronDown className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground ml-0.5 shrink-0" />
                   </button>
                 </PopoverTrigger>
-                <PopoverContent className="w-64 p-2 rounded-2xl shadow-xl border-border mt-2" align="start">
-                  <div className="p-3 bg-muted/50 rounded-xl mb-2 flex items-center gap-3 border border-border">
-                    <div className="h-12 w-12 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xl">
-                      <User className="h-6 w-6" />
-                    </div>
-                    <div>
-                      <p className="font-bold text-foreground">{waiterName}</p>
-                      <Badge variant="secondary" className="bg-primary/15 text-primary hover:bg-primary/20 text-[10px] px-1.5 py-0 mt-0.5">Camarero</Badge>
-                    </div>
-                  </div>
-
+                <PopoverContent className="w-48 p-2 rounded-md shadow-xl border-border mt-2" align="start">
                   <div className="space-y-1">
                     <Dialog open={isEditProfileOpen} onOpenChange={setIsEditProfileOpen}>
                       <DialogTrigger asChild>
-                        <Button variant="ghost" className="w-full justify-start text-muted-foreground hover:text-accent-foreground hover:bg-accent h-9 px-3">
+                        <Button variant="ghost" className="w-full justify-start text-muted-foreground hover:text-accent-foreground hover:bg-accent px-3 py-2">
                           <User className="mr-2 h-4 w-4" />
                           Editar Perfil
                         </Button>
@@ -191,31 +235,56 @@ export default function PosLayout({ children }: { children: ReactNode }) {
                             <Label htmlFor="name" className="text-right">
                               Nombre
                             </Label>
-                            <Input id="name" defaultValue={waiterName} className="col-span-3" />
+                            <Input 
+                              id="name" 
+                              value={editName} 
+                              onChange={(e) => setEditName(e.target.value)}
+                              className="col-span-3" 
+                            />
                           </div>
                           <div className="grid grid-cols-4 items-center gap-4">
-                            <Label htmlFor="pin" className="text-right">
-                              PIN
+                            <Label htmlFor="email" className="text-right">
+                              Email
                             </Label>
-                            <Input id="pin" type="password" placeholder="****" className="col-span-3" />
+                            <Input 
+                              id="email" 
+                              type="email"
+                              value={editEmail} 
+                              onChange={(e) => setEditEmail(e.target.value)}
+                              className="col-span-3" 
+                            />
                           </div>
                           <div className="grid grid-cols-4 items-center gap-4">
-                            <Label htmlFor="zone" className="text-right">
-                              Zona Preferida
+                            <Label htmlFor="password" className="text-right text-xs">
+                              Nueva Contraseña
                             </Label>
-                            <Input id="zone" defaultValue={assignedZone} className="col-span-3" disabled />
+                            <Input 
+                              id="password" 
+                              type="password" 
+                              placeholder="Dejar en blanco para no cambiar" 
+                              value={editPassword}
+                              onChange={(e) => setEditPassword(e.target.value)}
+                              className="col-span-3" 
+                            />
                           </div>
                         </div>
                         <DialogFooter>
-                          <Button type="button" onClick={() => setIsEditProfileOpen(false)}>Guardar Cambios</Button>
+                          <Button 
+                            type="button" 
+                            onClick={handleUpdateProfile}
+                            disabled={isUpdating}
+                          >
+                            {isUpdating ? "Guardando..." : "Guardar Cambios"}
+                          </Button>
                         </DialogFooter>
                       </DialogContent>
                     </Dialog>
                     
-                    <div className="h-px bg-border my-2" />
+                    <Separator />
+
                     <Button 
                       variant="ghost" 
-                      className="w-full justify-start text-destructive hover:text-destructive hover:bg-destructive/10 h-9 px-3"
+                      className="w-full justify-start text-destructive hover:text-destructive hover:bg-destructive/10 px-3 py-2"
                       onClick={handleLogout}
                     >
                       <LogOut className="mr-2 h-4 w-4" />
