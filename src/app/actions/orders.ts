@@ -39,6 +39,7 @@ export async function getKdsOrdersAction() {
         "x-schema-tenant": slug,
         ...(token ? { "Authorization": `Bearer ${token}` } : {})
       },
+      cache: 'no-store'
     });
 
     return await res.json();
@@ -101,6 +102,7 @@ export async function getSessionItemsAction(sessionId: number) {
         "x-schema-tenant": slug,
         ...(token ? { "Authorization": `Bearer ${token}` } : {})
       },
+      cache: 'no-store'
     });
 
     return await res.json();

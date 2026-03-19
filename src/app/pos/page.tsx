@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { toast } from "sonner";
 import { getPosTablesAction } from "@/app/actions/pos";
 import { 
@@ -39,6 +39,26 @@ export default function PosPage() {
   const [selectedTable, setSelectedTable] = useState<Table | null>(null);
   const [tableItems, setTableItems] = useState<OrderItem[]>([]);
   const [loadingItems, setLoadingItems] = useState(false);
+  
+  // Mesas ordenadas: Llamadas pendientes > Ocupadas > Nombre
+  const sortedTables = useMemo(() => {
+    return [...tables].sort((a, b) => {
+      // 1. Prioridad: Llamadas de mozo pendientes
+      const aHasCalls = (a.pendingCalls?.length || 0) > 0;
+      const bHasCalls = (b.pendingCalls?.length || 0) > 0;
+      if (aHasCalls && !bHasCalls) return -1;
+      if (!aHasCalls && bHasCalls) return 1;
+
+      // 2. Prioridad: Mesas ocupadas
+      const aOccupied = a.status === "occupied" || !!a.activeSession;
+      const bOccupied = b.status === "occupied" || !!b.activeSession;
+      if (aOccupied && !bOccupied) return -1;
+      if (!aOccupied && bOccupied) return 1;
+
+      // 3. Alfabético por nombre (con soporte numérico)
+      return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+    });
+  }, [tables]);
   
   // --- Estados de UI / Modales ---
   const [isConfirmingClose, setIsConfirmingClose] = useState(false);
@@ -414,7 +434,7 @@ export default function PosPage() {
 
       {/* Cuadrícula de mesas del salón */}
       <TableGrid 
-        tables={tables}
+        tables={sortedTables}
         loading={loading}
         onTableClick={handleOpenTable}
       />
