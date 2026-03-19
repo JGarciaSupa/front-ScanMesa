@@ -25,7 +25,8 @@ function KDSHeaderContent() {
   const pendingCount = useKdsStore((state) => state.pendingCount);
   const { tenantName, logoUrl, fetchConfig } = useConfigStore();
   const [time, setTime] = useState<string>("");
-  const [silentMode, setSilentMode] = useState(false);
+  const silentMode = useKdsStore((state) => state.silentMode);
+  const setSilentMode = useKdsStore((state) => state.setSilentMode);
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
   const [showProfileDialog, setShowProfileDialog] = useState(false);
 
@@ -62,23 +63,11 @@ function KDSHeaderContent() {
       {/* Izquierda: Menú Mobile, Nombre local y Reloj */}
       <div className="flex items-center justify-between w-full md:w-auto gap-4 lg:gap-8">
         <div className="flex items-center gap-4">
-          <Avatar className="h-10 w-10 border border-border bg-background shadow-sm">
-            {logoUrl ? (
-              <AvatarImage src={logoUrl} alt={tenantName} />
-            ) : (
-              <AvatarFallback className="bg-primary/10 text-primary font-bold">
-                {getInitials(tenantName)}
-              </AvatarFallback>
-            )}
-          </Avatar>
-          
-          <div className="hidden sm:block h-10 w-px bg-border" />
-
           <div>
             <h1 className="text-xl md:text-2xl font-black tracking-tighter text-foreground uppercase flex items-center gap-2 leading-none">
               <span>{tenantName}</span> 
             </h1>
-            <p className="text-muted-foreground font-black tracking-[0.2em] text-[10px] uppercase mt-1 leading-none">KITCHEN DISPLAY SYSTEM</p>
+            <p className="text-muted-foreground font-black tracking-[0.2em] text-[10px] uppercase mt-1 leading-none">SISTEMA DE VISUALIZACIÓN DE COCINA</p>
           </div>
         </div>
         <div className="flex items-center gap-2 md:gap-4 bg-muted/30 px-3 py-2 md:px-5 md:py-2.5 rounded-xl border border-border shadow-inner shrink-0 leading-none">
@@ -112,7 +101,7 @@ function KDSHeaderContent() {
         {/* Menú de Usuario */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-full border border-border rounded-xl shadow-md aspect-square bg-card shrink-0 hover:border-border/80 outline-none">
+            <Button variant="ghost" size="icon" className="h-[46px] w-[46px] border border-border rounded-full shadow-md aspect-square bg-card shrink-0 hover:border-border/80 outline-none">
               <User className="w-5 h-5 md:w-6 md:h-6 text-foreground" />
             </Button>
           </DropdownMenuTrigger>
@@ -126,7 +115,7 @@ function KDSHeaderContent() {
             <DropdownMenuSeparator />
             <div className="flex items-center justify-between p-2">
               <span className="text-sm font-medium">Modo Silencio</span>
-              <Switch checked={silentMode} onCheckedChange={setSilentMode} />
+              <Switch checked={silentMode} onCheckedChange={(val) => setSilentMode(val)} />
             </div>
             <div className="p-2 space-y-1">
               <Button 

@@ -73,7 +73,7 @@ export default function CartDrawer({
                   <div className="w-16 h-16 rounded-xl overflow-hidden bg-stone-100 shrink-0 shadow-sm border border-black/5">
                     <img src={item.product.imageUrl} alt={item.product.name} className="w-full h-full object-cover" />
                   </div>
-                  <div className="flex-1 flex flex-col justify-center">
+                  <div className="flex-1 flex flex-col justify-center w-full overflow-x-hidden">
                     <div className="flex justify-between items-start">
                       <span className="font-bold text-zinc-900 leading-tight line-clamp-2">{item.product.name}</span>
                       <span className="font-bold text-zinc-900 whitespace-nowrap ml-4">

@@ -79,6 +79,21 @@ export default function KDSPage() {
   }, []);
 
   // Configuración de WebSocket NATIVO de BUN
+  const silentMode = useKdsStore((state) => state.silentMode);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    audioRef.current = new Audio("/sounds/notification.mp3");
+  }, []);
+
+  const playNotification = useCallback(() => {
+    if (!silentMode && audioRef.current) {
+      audioRef.current.play().catch((err) => {
+        console.warn("Error playing notification sound:", err);
+      });
+    }
+  }, [silentMode]);
+
   useEffect(() => {
     let mounted = true;
     let reconnectTimeout: any;
@@ -128,6 +143,7 @@ export default function KDSPage() {
             const { event: eventName, data } = JSON.parse(event.data);
 
             if (eventName === "order:created") {
+              playNotification();
               toast("Nuevo pedido recibido", {
                 description: `Mesa: ${data.table || "Principal"}` as any,
                 action: {
@@ -307,12 +323,6 @@ export default function KDSPage() {
               </Link>
             </Button>
           )}
-          <Badge
-            variant="outline"
-            className="font-bold text-slate-500 py-1.5 px-3"
-          >
-            {orders.length} PEDIDOS ACTIVOS
-          </Badge>
         </div>
       </div>
 
