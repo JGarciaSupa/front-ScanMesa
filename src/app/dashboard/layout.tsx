@@ -24,13 +24,6 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Breadcrumb,
   BreadcrumbItem,
   BreadcrumbLink,
@@ -79,7 +72,7 @@ function SidebarContent() {
       <div className="flex h-16 items-center border-b border-slate-800 px-4 gap-3 bg-slate-950/50">
         <Avatar className="h-9 w-9 border border-slate-700 bg-slate-800">
           {logoUrl ? <AvatarImage src={logoUrl} alt={tenantName} /> : null}
-          <AvatarFallback className="bg-primary/20 text-primary font-bold text-xs">
+          <AvatarFallback className="text-primary font-bold text-xs">
             {getInitials(tenantName)}
           </AvatarFallback>
         </Avatar>

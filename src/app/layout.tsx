@@ -10,9 +10,12 @@ const roboto = Roboto({
 });
 
 export const metadata: Metadata = {
-  title: "Sistema de Autogestión",
+  title: "Qvadro",
   description: "POS & KDS para Restaurantes",
   manifest: "/manifest.json",
+  icons: {
+    icon: "/logo.png",
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
