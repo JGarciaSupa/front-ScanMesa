@@ -1,11 +1,12 @@
 "use client";
 
 import React, { useState } from "react";
-import { Download } from "lucide-react";
+import { Download, CalendarIcon } from "lucide-react";
 import { DateTime } from "luxon";
 import * as XLSX from "xlsx";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   Dialog,
   DialogContent,
@@ -14,6 +15,13 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { cn } from "@/lib/utils";
 import { getInvoicesAction } from "@/app/actions/invoices";
 
 interface ReportModalProps {
@@ -23,16 +31,16 @@ interface ReportModalProps {
 }
 
 export function ReportModal({ isOpen, onClose, searchTerm }: ReportModalProps) {
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
+  const [startDate, setStartDate] = useState<Date | undefined>(undefined);
+  const [endDate, setEndDate] = useState<Date | undefined>(undefined);
   const [loading, setLoading] = useState(false);
 
   const handleDownload = async () => {
     setLoading(true);
     try {
       // Usar Luxon para manejar correctamente las zonas horarias
-      const startISO = startDate ? DateTime.fromISO(startDate).startOf("day").toISO() : "";
-      const endISO = endDate ? DateTime.fromISO(endDate).endOf("day").toISO() : "";
+      const startISO = startDate ? DateTime.fromJSDate(startDate).startOf("day").toISO() : "";
+      const endISO = endDate ? DateTime.fromJSDate(endDate).endOf("day").toISO() : "";
 
       // Fetch ALL invoices for the report, not just the paged ones
       const allInvoicesRes = await getInvoicesAction({
@@ -78,28 +86,62 @@ export function ReportModal({ isOpen, onClose, searchTerm }: ReportModalProps) {
         </DialogHeader>
         <div className="grid gap-4 py-4">
           <div className="grid grid-cols-4 items-center gap-4">
-            <label htmlFor="startDate" className="text-right text-sm font-medium">
+            <label className="text-right text-sm font-medium">
               Desde
             </label>
-            <Input
-              id="startDate"
-              type="date"
-              className="col-span-3"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-            />
+            <div className="col-span-3">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant={"outline"}
+                    className={cn(
+                      "w-full justify-start text-left font-normal",
+                      !startDate && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {startDate ? format(startDate, "PPP", { locale: es }) : <span>Selecciona fecha</span>}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={startDate}
+                    onSelect={setStartDate}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
-            <label htmlFor="endDate" className="text-right text-sm font-medium">
+            <label className="text-right text-sm font-medium">
               Hasta
             </label>
-            <Input
-              id="endDate"
-              type="date"
-              className="col-span-3"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-            />
+            <div className="col-span-3">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant={"outline"}
+                    className={cn(
+                      "w-full justify-start text-left font-normal",
+                      !endDate && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {endDate ? format(endDate, "PPP", { locale: es }) : <span>Selecciona fecha</span>}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={endDate}
+                    onSelect={setEndDate}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
           </div>
         </div>
         <DialogFooter>
